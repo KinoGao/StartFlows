@@ -22,6 +22,8 @@ export default function nextConfig(phase: string): NextConfig {
     const releases = parseChangelog(localChangelog);
     return {
         distDir,
+        // 开发指示器的对话框背板会全屏拦截指针事件，导致画布节点无法拖拽；关掉它
+        devIndicators: false,
         output: "standalone",
         outputFileTracingRoot: webDir,
         turbopack: { root: webDir },
