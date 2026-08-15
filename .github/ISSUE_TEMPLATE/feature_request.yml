@@ -1,0 +1,27 @@
+name: 功能建议
+description: 提议明确、可验证的新能力或体验改进
+title: "[Feature] "
+labels: [enhancement]
+body:
+  - type: textarea
+    attributes:
+      label: 使用场景
+      description: 说明谁在什么情况下遇到什么问题
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: 期望结果
+      description: 描述用户可观察到的结果，不必预设具体技术实现
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: 验收方式
+      description: 列出可以判断功能完成的步骤或结果
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: 补充材料
+      description: 可附脱敏截图、公开协议文档或参考产品链接

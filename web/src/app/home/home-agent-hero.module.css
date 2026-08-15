@@ -1,0 +1,994 @@
+.hero {
+    --hero-card-radius: 30px;
+    --hero-card-width: 1110px;
+    --hero-text-primary: #0b1020;
+    --hero-text-secondary: #66718a;
+    --hero-border: rgba(94, 99, 255, 0.15);
+    --hero-blue: #356fff;
+    --hero-purple: #7238f5;
+    align-items: flex-start;
+    background:
+        linear-gradient(118deg, rgba(218, 234, 255, 0.46) 0%, rgba(237, 243, 255, 0.16) 27%, transparent 48%), linear-gradient(242deg, rgba(239, 226, 255, 0.38) 0%, rgba(247, 240, 255, 0.14) 30%, transparent 51%),
+        linear-gradient(180deg, #fdfdff 0%, #f9faff 44%, #fbfaff 72%, #fdfdff 100%);
+    border-bottom: 1px solid rgba(106, 119, 164, 0.08);
+    display: flex;
+    min-height: calc(100svh - 80px);
+    overflow: hidden;
+    padding: clamp(120px, 15vh, 160px) 32px 42px;
+    position: relative;
+}
+
+.hero::before,
+.hero::after {
+    content: "";
+    inset: 0;
+    pointer-events: none;
+    position: absolute;
+}
+
+.hero::before {
+    background: radial-gradient(ellipse 62% 28% at 50% 70%, rgba(147, 153, 246, 0.1), transparent 72%), linear-gradient(90deg, rgba(224, 237, 255, 0.15), rgba(255, 255, 255, 0.68) 48%, rgba(239, 229, 255, 0.16));
+    opacity: 0.84;
+    z-index: 0;
+}
+
+.hero::after {
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.22), transparent 30%, rgba(231, 230, 255, 0.12) 78%, rgba(255, 255, 255, 0.3));
+    z-index: 0;
+}
+
+:global(.dark) .hero {
+    --hero-text-primary: #f5f6ff;
+    --hero-text-secondary: #a8b0c5;
+    --hero-border: rgba(139, 145, 255, 0.22);
+    background: linear-gradient(118deg, rgba(26, 52, 103, 0.17), transparent 43%), linear-gradient(242deg, rgba(78, 35, 91, 0.13), transparent 46%), linear-gradient(180deg, #0a0d16 0%, #0c101b 46%, #100f1b 76%, #090b12 100%);
+    border-bottom-color: rgba(255, 255, 255, 0.07);
+}
+
+:global(.dark) .hero::before {
+    background: radial-gradient(ellipse 66% 30% at 50% 72%, rgba(90, 82, 220, 0.12), transparent 72%), linear-gradient(90deg, rgba(31, 58, 111, 0.055), rgba(13, 16, 27, 0.12) 48%, rgba(73, 37, 91, 0.055));
+    opacity: 0.72;
+}
+
+:global(.dark) .hero::after {
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.018), transparent 30%, rgba(70, 61, 132, 0.035) 78%, rgba(0, 0, 0, 0.08));
+}
+
+.heroContent {
+    margin: 0 auto;
+    max-width: 1240px;
+    position: relative;
+    text-align: center;
+    width: 100%;
+    z-index: 2;
+}
+
+.heroTitle {
+    color: var(--hero-text-primary);
+    font-size: 64px;
+    font-weight: 780;
+    line-height: 1.12;
+    margin: 0;
+    text-wrap: balance;
+}
+
+.heroTitle span {
+    background: linear-gradient(135deg, #3b6fff 0%, #5b57ff 48%, #7b32ff 100%);
+    background-clip: text;
+    color: transparent;
+}
+
+:global(.dark) .heroTitle span {
+    background: linear-gradient(135deg, #6f95ff 0%, #827dff 48%, #a270ff 100%);
+    background-clip: text;
+}
+
+.heroSubtitle {
+    color: var(--hero-text-secondary);
+    font-size: 19px;
+    font-weight: 400;
+    line-height: 1.65;
+    margin: 22px auto 0;
+    max-width: 760px;
+}
+
+.agentStage {
+    isolation: isolate;
+    margin: 56px auto 0;
+    padding-bottom: 136px;
+    position: relative;
+    width: min(var(--hero-card-width), calc(100vw - 96px));
+}
+
+.agentCard {
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.985), rgba(252, 252, 255, 0.955));
+    border: 1px solid rgba(112, 117, 205, 0.13);
+    border-radius: var(--hero-card-radius);
+    box-shadow:
+        0 24px 70px rgba(67, 71, 180, 0.08),
+        inset 0 1px 0 rgba(255, 255, 255, 0.95);
+    display: flex;
+    flex-direction: column;
+    min-height: 300px;
+    min-width: 0;
+    opacity: 1;
+    overflow: hidden;
+    position: relative;
+    text-align: left;
+    transition:
+        border-color 180ms ease,
+        box-shadow 180ms ease;
+    backdrop-filter: blur(22px);
+    visibility: visible;
+    width: 100%;
+    z-index: 2;
+}
+
+.agentCard:focus-within {
+    border-color: rgba(92, 84, 230, 0.3);
+    box-shadow:
+        0 0 0 3px rgba(95, 85, 235, 0.06),
+        0 26px 74px rgba(67, 71, 180, 0.1),
+        inset 0 1px 0 rgba(255, 255, 255, 0.98);
+}
+
+:global(.dark) .agentCard {
+    background: rgba(15, 20, 39, 0.94);
+    box-shadow:
+        0 30px 86px rgba(0, 0, 0, 0.34),
+        0 10px 34px rgba(74, 62, 186, 0.12),
+        inset 0 1px 0 rgba(255, 255, 255, 0.07);
+}
+
+.inputArea {
+    display: flex;
+    flex: 1 1 auto;
+    min-height: 0;
+    padding: 32px 38px 0;
+}
+
+.agentTextarea {
+    appearance: none;
+    background: transparent !important;
+    border: 0 !important;
+    border-radius: 0;
+    box-shadow: none !important;
+    color: var(--hero-text-primary);
+    display: block;
+    font: inherit;
+    font-size: 17px;
+    line-height: 1.65;
+    flex: 1 1 auto;
+    min-height: 74px;
+    outline: 0 !important;
+    padding: 0;
+    resize: none;
+    width: 100%;
+}
+
+.agentTextarea:hover,
+.agentTextarea:focus,
+.agentTextarea:focus-visible {
+    background: transparent !important;
+    border: 0 !important;
+    box-shadow: none !important;
+    outline: 0 !important;
+}
+
+.agentTextarea::placeholder {
+    color: #66718a;
+    opacity: 1;
+}
+
+:global(.dark) .agentTextarea::placeholder {
+    color: #929bb2;
+}
+
+.promptExamples {
+    display: grid;
+    gap: 12px;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    overflow: hidden;
+    padding: 0 38px;
+    scrollbar-width: none;
+}
+
+.promptExamples::-webkit-scrollbar,
+.creationModes::-webkit-scrollbar {
+    display: none;
+}
+
+.promptExamples button {
+    background: rgba(247, 248, 253, 0.62);
+    border: 1px solid rgba(139, 145, 179, 0.14);
+    border-radius: 999px;
+    color: #3b4357;
+    cursor: pointer;
+    font-size: 13px;
+    height: 44px;
+    min-width: 0;
+    overflow: hidden;
+    padding: 0 18px;
+    text-overflow: ellipsis;
+    transition:
+        background 160ms ease,
+        border-color 160ms ease,
+        color 160ms ease;
+    white-space: nowrap;
+}
+
+.promptExamples button:hover,
+.promptExamples button:focus-visible {
+    background: rgba(245, 243, 255, 0.86);
+    border-color: rgba(103, 91, 220, 0.28);
+    color: #4d47a6;
+}
+
+:global(.dark) .promptExamples button {
+    background: rgba(255, 255, 255, 0.045);
+    border-color: rgba(157, 168, 218, 0.18);
+    color: #c1c7d8;
+}
+
+:global(.dark) .promptExamples button:hover,
+:global(.dark) .promptExamples button:focus-visible {
+    background: rgba(111, 92, 226, 0.12);
+    border-color: rgba(141, 126, 245, 0.36);
+    color: #ffffff;
+}
+
+.agentToolbar {
+    align-items: center;
+    display: grid;
+    gap: 18px;
+    grid-template-columns: minmax(0, 1fr) auto;
+    margin-top: 22px;
+    padding: 0 38px 26px;
+}
+
+.creationModes {
+    display: flex;
+    gap: 8px;
+    min-width: 0;
+    overflow-x: auto;
+    scrollbar-width: none;
+}
+
+.creationModes button,
+.agentTools button {
+    align-items: center;
+    background: rgba(255, 255, 255, 0.62);
+    border: 1px solid #e3e6f0;
+    color: #20263a;
+    cursor: pointer;
+    display: inline-flex;
+    height: 46px;
+    justify-content: center;
+    transition:
+        background 160ms ease,
+        border-color 160ms ease,
+        box-shadow 160ms ease,
+        color 160ms ease,
+        transform 160ms ease;
+}
+
+.creationModes button {
+    border-radius: 14px;
+    flex: 0 0 auto;
+    font-size: 14px;
+    font-weight: 560;
+    gap: 8px;
+    padding: 0 15px 0 9px;
+}
+
+.modeIcon {
+    align-items: center;
+    border-radius: 8px;
+    display: inline-flex;
+    height: 30px;
+    justify-content: center;
+    width: 30px;
+}
+
+.modeIcon svg {
+    height: 17px;
+    width: 17px;
+}
+
+.creationModes button:nth-child(1) .modeIcon {
+    background: #eee9ff;
+    color: #6847e6;
+}
+
+.creationModes button:nth-child(2) .modeIcon {
+    background: #e5f8f1;
+    color: #13a274;
+}
+
+.creationModes button:nth-child(3) .modeIcon {
+    background: #fff0ea;
+    color: #ee5a25;
+}
+
+.creationModes button:nth-child(4) .modeIcon {
+    background: #ecebff;
+    color: #5b55ee;
+}
+
+.creationModes button:hover {
+    background: #ffffff;
+    border-color: rgba(100, 104, 180, 0.28);
+    color: #1b2140;
+}
+
+.creationModes .modeActive {
+    background: rgba(244, 243, 255, 0.82);
+    border-color: rgba(89, 82, 214, 0.24);
+    box-shadow: none;
+    color: #151a31;
+}
+
+:global(.dark) .creationModes button,
+:global(.dark) .agentTools button {
+    background: rgba(255, 255, 255, 0.045);
+    border-color: rgba(157, 168, 218, 0.18);
+    color: #d5daea;
+}
+
+:global(.dark) .creationModes button:hover,
+:global(.dark) .creationModes .modeActive {
+    background: rgba(119, 99, 235, 0.12);
+    border-color: rgba(141, 126, 245, 0.36);
+    color: #ffffff;
+}
+
+.agentTools {
+    align-items: center;
+    display: flex;
+    gap: 8px;
+}
+
+.agentTools button {
+    border-radius: 50%;
+    width: 46px;
+}
+
+.agentTools button:not(.sendButton) {
+    background: rgba(246, 247, 252, 0.82);
+    border-color: rgba(132, 141, 174, 0.18);
+    color: #3d4964;
+}
+
+.agentTools button:hover {
+    background: rgba(240, 240, 252, 0.92);
+    border-color: rgba(104, 100, 190, 0.26);
+    color: #5550bd;
+    transform: none;
+}
+
+.agentTools button svg {
+    height: 20px;
+    width: 20px;
+}
+
+.agentTools .sendButton {
+    background: linear-gradient(135deg, #5d8cff 0%, #696cf6 50%, #8b63ee 100%);
+    border: 1px solid rgba(91, 91, 210, 0.14);
+    border-radius: 50%;
+    box-shadow: none;
+    color: #ffffff;
+    height: 48px;
+    width: 48px;
+}
+
+.agentTools .sendButton:hover,
+.agentTools .sendButton:focus-visible {
+    background: linear-gradient(135deg, #4f82fb 0%, #625ff0 50%, #8157e8 100%);
+    border-color: rgba(86, 82, 196, 0.22);
+    box-shadow: none;
+    color: #ffffff;
+}
+
+.agentTools button:not(.sendButton):focus-visible {
+    background: #ffffff;
+    border-color: rgba(91, 82, 214, 0.38);
+    box-shadow: 0 0 0 3px rgba(95, 85, 235, 0.08);
+    color: #473fc5;
+}
+
+:global(.dark) .agentTools button:not(.sendButton) {
+    background: rgba(255, 255, 255, 0.055);
+    border-color: rgba(173, 183, 225, 0.17);
+    color: #cbd2e5;
+}
+
+:global(.dark) .agentTools button:not(.sendButton):hover,
+:global(.dark) .agentTools button:not(.sendButton):focus-visible {
+    background: rgba(116, 105, 221, 0.13);
+    border-color: rgba(151, 139, 244, 0.34);
+    color: #f2f0ff;
+}
+
+:global(.dark) .agentTools .sendButton {
+    background: linear-gradient(135deg, #7196ff 0%, #7f72f6 52%, #a06df0 100%);
+    border-color: rgba(204, 207, 255, 0.18);
+    box-shadow: none;
+    color: #ffffff;
+}
+
+:global(.dark) .agentTools .sendButton:hover,
+:global(.dark) .agentTools .sendButton:focus-visible {
+    background: linear-gradient(135deg, #80a1ff 0%, #8a7cf8 52%, #ac7af2 100%);
+    border-color: rgba(225, 226, 255, 0.24);
+    box-shadow: none;
+    color: #ffffff;
+}
+
+.agentTools .sendButton svg {
+    height: 22px;
+    width: 22px;
+}
+
+.agentRing {
+    height: 238px;
+    left: 50%;
+    pointer-events: none;
+    position: absolute;
+    top: 158px;
+    transform: translateX(-50%);
+    width: 118%;
+    z-index: 0;
+    -webkit-mask-image: linear-gradient(90deg, transparent 0%, #000000 8%, #000000 92%, transparent 100%);
+    mask-image: linear-gradient(90deg, transparent 0%, #000000 8%, #000000 92%, transparent 100%);
+}
+
+.agentRing span {
+    border-radius: 50%;
+    left: 50%;
+    position: absolute;
+    transform: translateX(-50%);
+}
+
+.ringGround {
+    background: radial-gradient(ellipse at center, rgba(119, 112, 239, 0.13) 0%, rgba(113, 141, 238, 0.075) 38%, rgba(174, 136, 231, 0.035) 58%, transparent 76%);
+    filter: blur(22px);
+    height: 132px;
+    opacity: 0.72;
+    top: 78px;
+    width: 86%;
+}
+
+.ringOuter {
+    background:
+        radial-gradient(ellipse at 50% 16%, rgba(255, 255, 255, 0.84), rgba(228, 232, 255, 0.2) 44%, transparent 70%),
+        linear-gradient(180deg, rgba(239, 242, 255, 0.48), rgba(181, 189, 246, 0.18) 46%, rgba(133, 144, 226, 0.09) 70%, rgba(160, 128, 218, 0.035));
+    height: 202px;
+    top: 8px;
+    width: 100%;
+    -webkit-mask: radial-gradient(ellipse at center, transparent 0 37%, #000000 39% 73%, transparent 76%);
+    mask: radial-gradient(ellipse at center, transparent 0 37%, #000000 39% 73%, transparent 76%);
+}
+
+.ringMiddle {
+    background:
+        radial-gradient(ellipse at 46% 12%, rgba(255, 255, 255, 0.82), rgba(222, 231, 255, 0.17) 48%, transparent 72%),
+        linear-gradient(180deg, rgba(237, 242, 255, 0.42), rgba(172, 190, 242, 0.16) 50%, rgba(148, 134, 220, 0.075) 74%, rgba(177, 134, 215, 0.025));
+    height: 160px;
+    top: 30px;
+    width: 91%;
+    -webkit-mask: radial-gradient(ellipse at center, transparent 0 38%, #000000 41% 72%, transparent 75%);
+    mask: radial-gradient(ellipse at center, transparent 0 38%, #000000 41% 72%, transparent 75%);
+}
+
+.ringInner {
+    background:
+        radial-gradient(ellipse at 54% 8%, rgba(255, 255, 255, 0.88), rgba(232, 226, 255, 0.2) 50%, transparent 72%),
+        linear-gradient(180deg, rgba(246, 243, 255, 0.5), rgba(201, 185, 239, 0.17) 52%, rgba(153, 155, 221, 0.07) 76%, rgba(149, 130, 196, 0.02));
+    height: 122px;
+    top: 50px;
+    width: 80%;
+    -webkit-mask: radial-gradient(ellipse at center, transparent 0 38%, #000000 42% 71%, transparent 75%);
+    mask: radial-gradient(ellipse at center, transparent 0 38%, #000000 42% 71%, transparent 75%);
+}
+
+:global(.dark) .ringGround {
+    background: radial-gradient(ellipse at center, rgba(105, 86, 255, 0.28) 0%, rgba(76, 121, 245, 0.16) 38%, rgba(163, 91, 238, 0.08) 58%, transparent 76%);
+}
+
+:global(.dark) .ringOuter {
+    background:
+        radial-gradient(ellipse at 50% 16%, rgba(168, 190, 255, 0.28), rgba(113, 130, 247, 0.12) 44%, transparent 70%),
+        linear-gradient(180deg, rgba(137, 157, 255, 0.28), rgba(102, 111, 235, 0.22) 48%, rgba(101, 73, 204, 0.16) 72%, rgba(139, 73, 197, 0.07));
+}
+
+:global(.dark) .ringMiddle {
+    background:
+        radial-gradient(ellipse at 46% 12%, rgba(153, 190, 255, 0.25), rgba(102, 140, 239, 0.1) 48%, transparent 72%), linear-gradient(180deg, rgba(123, 154, 251, 0.24), rgba(89, 120, 225, 0.2) 50%, rgba(106, 72, 200, 0.14) 74%, rgba(157, 72, 191, 0.06));
+}
+
+:global(.dark) .ringInner {
+    background:
+        radial-gradient(ellipse at 54% 8%, rgba(189, 182, 255, 0.28), rgba(139, 112, 232, 0.12) 50%, transparent 72%), linear-gradient(180deg, rgba(157, 145, 250, 0.24), rgba(130, 93, 220, 0.2) 52%, rgba(94, 95, 196, 0.13) 76%, rgba(93, 68, 156, 0.05));
+}
+
+.floatingArtifact {
+    --artifact-delay: 100ms;
+    --artifact-border: rgba(126, 117, 225, 0.2);
+    --artifact-edge: linear-gradient(145deg, rgba(171, 163, 236, 0.42), rgba(111, 99, 201, 0.36));
+    --artifact-origin-x: 180px;
+    --artifact-origin-y: 116px;
+    --artifact-rotate: -8deg;
+    --artifact-shift-x: 0px;
+    --artifact-shift-y: -10px;
+    --artifact-surface: radial-gradient(circle at 24% 18%, rgba(255, 255, 255, 0.96) 0 16%, transparent 46%), linear-gradient(145deg, rgba(250, 249, 255, 0.92), rgba(226, 224, 255, 0.72));
+    --artifact-x-end: 6deg;
+    --artifact-x-start: -5deg;
+    --artifact-y-end: 10deg;
+    --artifact-y-start: -12deg;
+    animation:
+        artifact-reveal 880ms cubic-bezier(0.16, 1, 0.3, 1) var(--artifact-delay) both,
+        artifact-float var(--artifact-duration, 12s) cubic-bezier(0.45, 0, 0.55, 1) calc(var(--artifact-delay) + 880ms) infinite;
+    background: transparent;
+    border: 0;
+    border-radius: 20px;
+    box-shadow: none;
+    color: #6c58e9;
+    pointer-events: none;
+    position: absolute;
+    transform-style: preserve-3d;
+    will-change: transform;
+    z-index: 1;
+}
+
+.floatingArtifact::before,
+.floatingArtifact::after {
+    content: "";
+    position: absolute;
+}
+
+.floatingArtifact::before {
+    background: var(--artifact-edge);
+    border: 1px solid var(--artifact-border);
+    border-radius: inherit;
+    box-shadow: none;
+    inset: 3px -4px -5px 4px;
+    transform: translateZ(-9px);
+}
+
+.floatingArtifact::after {
+    content: none;
+}
+
+.artifactFace {
+    align-items: center;
+    background: var(--artifact-surface);
+    border: 1px solid rgba(255, 255, 255, 0.78);
+    border-radius: inherit;
+    box-shadow: none;
+    display: flex;
+    inset: 0;
+    justify-content: center;
+    overflow: hidden;
+    position: absolute;
+    transform: translateZ(8px);
+    transform-style: preserve-3d;
+}
+
+.artifactFace::before,
+.artifactFace::after {
+    content: "";
+    pointer-events: none;
+    position: absolute;
+}
+
+.artifactFace::before {
+    background: linear-gradient(132deg, rgba(255, 255, 255, 0.72), transparent 38% 72%, rgba(111, 98, 205, 0.07));
+    inset: 0;
+}
+
+.artifactFace::after {
+    background: linear-gradient(105deg, transparent 20%, rgba(255, 255, 255, 0.68) 46%, transparent 68%);
+    height: 160%;
+    opacity: 0.34;
+    right: 16%;
+    top: -30%;
+    transform: rotate(12deg);
+    width: 18%;
+}
+
+.artifactFace svg {
+    filter: none;
+    height: 38%;
+    position: relative;
+    stroke-width: 1.75;
+    transform: translateZ(14px);
+    width: 38%;
+    z-index: 1;
+}
+
+.artifactAgent {
+    --artifact-delay: 120ms;
+    --artifact-duration: 13.5s;
+    --artifact-rotate: -11deg;
+    --artifact-shift-x: 7px;
+    height: 64px;
+    left: 6.2%;
+    top: 172px;
+    width: 64px;
+}
+
+.artifactImage {
+    --artifact-delay: 260ms;
+    --artifact-duration: 11.8s;
+    --artifact-rotate: 13deg;
+    --artifact-shift-x: -5px;
+    --artifact-shift-y: -9px;
+    --artifact-origin-x: 240px;
+    --artifact-origin-y: -14px;
+    --artifact-border: rgba(59, 161, 127, 0.18);
+    --artifact-edge: linear-gradient(145deg, rgba(113, 205, 176, 0.42), rgba(49, 144, 116, 0.34));
+    --artifact-surface: radial-gradient(circle at 24% 18%, rgba(255, 255, 255, 0.96) 0 16%, transparent 46%), linear-gradient(145deg, rgba(249, 255, 253, 0.92), rgba(213, 244, 234, 0.72));
+    --artifact-y-end: -13deg;
+    --artifact-y-start: 17deg;
+    border-radius: 17px;
+    color: #23a77b;
+    height: 48px;
+    left: 2.8%;
+    top: 412px;
+    width: 48px;
+}
+
+.artifactVideo {
+    --artifact-delay: 400ms;
+    --artifact-duration: 14.5s;
+    --artifact-rotate: 10deg;
+    --artifact-shift-x: -8px;
+    --artifact-shift-y: -14px;
+    --artifact-origin-x: -180px;
+    --artifact-origin-y: 74px;
+    --artifact-border: rgba(222, 94, 53, 0.18);
+    --artifact-edge: linear-gradient(145deg, rgba(244, 156, 123, 0.44), rgba(195, 89, 61, 0.34));
+    --artifact-surface: radial-gradient(circle at 24% 18%, rgba(255, 255, 255, 0.96) 0 16%, transparent 46%), linear-gradient(145deg, rgba(255, 252, 250, 0.92), rgba(253, 223, 211, 0.74));
+    border-radius: 22px;
+    color: #ee6a3b;
+    height: 68px;
+    right: 6%;
+    top: 248px;
+    width: 68px;
+}
+
+.artifactAudio {
+    --artifact-delay: 540ms;
+    --artifact-duration: 12.6s;
+    --artifact-rotate: -14deg;
+    --artifact-shift-x: 5px;
+    --artifact-shift-y: -10px;
+    --artifact-origin-x: -240px;
+    --artifact-origin-y: -18px;
+    --artifact-border: rgba(98, 87, 210, 0.18);
+    --artifact-edge: linear-gradient(145deg, rgba(155, 144, 231, 0.42), rgba(92, 82, 181, 0.34));
+    --artifact-surface: radial-gradient(circle at 24% 18%, rgba(255, 255, 255, 0.96) 0 16%, transparent 46%), linear-gradient(145deg, rgba(252, 251, 255, 0.92), rgba(225, 221, 252, 0.72));
+    --artifact-y-end: -12deg;
+    --artifact-y-start: 16deg;
+    border-radius: 18px;
+    color: #6659dc;
+    height: 50px;
+    right: 2.7%;
+    top: 456px;
+    width: 50px;
+}
+
+:global(.dark) .floatingArtifact {
+    --artifact-border: rgba(155, 162, 225, 0.18);
+    --artifact-edge: linear-gradient(145deg, rgba(103, 98, 167, 0.56), rgba(46, 43, 101, 0.52));
+    --artifact-surface: radial-gradient(circle at 24% 18%, rgba(255, 255, 255, 0.16) 0 14%, transparent 44%), linear-gradient(145deg, rgba(57, 61, 84, 0.9), rgba(29, 31, 54, 0.86));
+}
+
+:global(.dark) .artifactImage {
+    --artifact-border: rgba(76, 154, 131, 0.2);
+    --artifact-edge: linear-gradient(145deg, rgba(58, 132, 112, 0.58), rgba(26, 72, 64, 0.52));
+    --artifact-surface: radial-gradient(circle at 24% 18%, rgba(255, 255, 255, 0.13) 0 14%, transparent 44%), linear-gradient(145deg, rgba(39, 76, 68, 0.9), rgba(20, 43, 42, 0.86));
+}
+
+:global(.dark) .artifactVideo {
+    --artifact-border: rgba(188, 94, 65, 0.2);
+    --artifact-edge: linear-gradient(145deg, rgba(156, 78, 58, 0.58), rgba(87, 43, 40, 0.52));
+    --artifact-surface: radial-gradient(circle at 24% 18%, rgba(255, 255, 255, 0.14) 0 14%, transparent 44%), linear-gradient(145deg, rgba(89, 51, 46, 0.9), rgba(47, 31, 36, 0.86));
+}
+
+:global(.dark) .artifactAudio {
+    --artifact-border: rgba(117, 106, 201, 0.2);
+    --artifact-edge: linear-gradient(145deg, rgba(105, 94, 182, 0.58), rgba(53, 48, 111, 0.52));
+    --artifact-surface: radial-gradient(circle at 24% 18%, rgba(255, 255, 255, 0.14) 0 14%, transparent 44%), linear-gradient(145deg, rgba(61, 57, 99, 0.9), rgba(32, 32, 61, 0.86));
+}
+
+:global(.dark) .artifactFace {
+    border-color: rgba(255, 255, 255, 0.16);
+    box-shadow: none;
+}
+
+.srOnly {
+    clip: rect(0, 0, 0, 0);
+    clip-path: inset(50%);
+    height: 1px;
+    overflow: hidden;
+    position: absolute;
+    white-space: nowrap;
+    width: 1px;
+}
+
+@keyframes artifact-float {
+    0%,
+    100% {
+        transform: perspective(520px) translate3d(0, 0, 0) rotateX(var(--artifact-x-start)) rotateY(var(--artifact-y-start)) rotateZ(var(--artifact-rotate));
+    }
+    50% {
+        transform: perspective(520px) translate3d(var(--artifact-shift-x), var(--artifact-shift-y), 22px) rotateX(var(--artifact-x-end)) rotateY(var(--artifact-y-end)) rotateZ(var(--artifact-rotate));
+    }
+}
+
+@keyframes artifact-reveal {
+    0% {
+        opacity: 0;
+        transform: perspective(520px) translate3d(var(--artifact-origin-x), var(--artifact-origin-y), -54px) scale(0.56) rotateX(var(--artifact-x-start)) rotateY(var(--artifact-y-start)) rotateZ(var(--artifact-rotate));
+    }
+    58% {
+        opacity: 1;
+    }
+    100% {
+        opacity: 1;
+        transform: perspective(520px) translate3d(0, 0, 0) scale(1) rotateX(var(--artifact-x-start)) rotateY(var(--artifact-y-start)) rotateZ(var(--artifact-rotate));
+    }
+}
+
+@media (max-height: 950px) and (min-width: 1024px) {
+    .hero {
+        padding-top: 88px;
+    }
+
+    .heroTitle {
+        font-size: 60px;
+    }
+
+    .heroSubtitle {
+        margin-top: 20px;
+    }
+
+    .agentStage {
+        margin-top: 40px;
+        padding-bottom: 138px;
+    }
+
+    .agentCard {
+        min-height: 288px;
+    }
+
+    .agentRing {
+        height: 226px;
+        top: 154px;
+    }
+
+    .ringOuter {
+        height: 188px;
+    }
+
+    .ringMiddle {
+        height: 146px;
+    }
+
+    .ringInner {
+        height: 104px;
+    }
+}
+
+@media (max-width: 1200px) {
+    .heroTitle {
+        font-size: 56px;
+    }
+
+    .agentStage {
+        width: min(var(--hero-card-width), calc(100vw - 48px));
+    }
+
+    .promptExamples {
+        display: flex;
+        overflow-x: auto;
+    }
+
+    .promptExamples button {
+        flex: 0 0 240px;
+    }
+}
+
+@media (max-width: 767px) {
+    .hero {
+        min-height: calc(100svh - 62px);
+        padding: 48px 14px 34px;
+    }
+
+    .heroTitle {
+        font-size: 42px;
+        line-height: 1.14;
+    }
+
+    .heroSubtitle {
+        font-size: 15px;
+        line-height: 1.7;
+        margin-top: 16px;
+    }
+
+    .agentStage {
+        margin-top: 30px;
+        padding-bottom: 118px;
+        width: 100%;
+    }
+
+    .agentCard {
+        border-radius: 24px;
+        min-height: 304px;
+    }
+
+    .inputArea {
+        padding: 23px 18px 0;
+    }
+
+    .agentTextarea {
+        font-size: 15px;
+        min-height: 82px;
+    }
+
+    .promptExamples {
+        display: grid;
+        gap: 8px;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        overflow: visible;
+        padding: 0 14px;
+    }
+
+    .promptExamples button {
+        font-size: 12px;
+        height: 40px;
+        padding: 0 6px;
+        width: 100%;
+    }
+
+    .agentToolbar {
+        gap: 10px;
+        margin-top: 18px;
+        padding: 0 14px 18px;
+    }
+
+    .creationModes button {
+        height: 46px;
+        min-width: 46px;
+        padding: 0;
+    }
+
+    .creationModes {
+        gap: 6px;
+        overflow: visible;
+    }
+
+    .modeLabel {
+        display: none;
+    }
+
+    .modeIcon {
+        height: 28px;
+        width: 28px;
+    }
+
+    .agentTools {
+        gap: 6px;
+    }
+
+    .agentTools button {
+        height: 44px;
+        width: 44px;
+    }
+
+    .agentTools .sendButton {
+        height: 48px;
+        width: 48px;
+    }
+
+    .agentRing {
+        height: 190px;
+        top: 218px;
+        width: 130%;
+    }
+
+    .ringOuter {
+        height: 142px;
+        top: 16px;
+    }
+
+    .ringMiddle {
+        height: 108px;
+        top: 34px;
+    }
+
+    .ringInner {
+        height: 78px;
+        top: 49px;
+    }
+
+    .ringGround {
+        height: 100px;
+        top: 50px;
+    }
+
+    .artifactAgent {
+        --artifact-origin-x: 150px;
+        --artifact-origin-y: 26px;
+        border-radius: 12px;
+        height: 34px;
+        left: 22px;
+        top: 210px;
+        width: 34px;
+    }
+
+    .artifactImage {
+        --artifact-origin-x: 70px;
+        --artifact-origin-y: 26px;
+        border-radius: 10px;
+        display: block;
+        height: 30px;
+        left: 96px;
+        top: 216px;
+        width: 30px;
+    }
+
+    .artifactVideo {
+        --artifact-origin-x: -70px;
+        --artifact-origin-y: 26px;
+        border-radius: 11px;
+        height: 32px;
+        right: 96px;
+        top: 214px;
+        width: 32px;
+    }
+
+    .artifactAudio {
+        --artifact-origin-x: -150px;
+        --artifact-origin-y: 26px;
+        border-radius: 10px;
+        display: block;
+        height: 28px;
+        right: 22px;
+        top: 216px;
+        width: 28px;
+    }
+
+    .floatingArtifact {
+        z-index: 3;
+    }
+}
+
+@media (max-width: 420px) {
+    .heroTitle {
+        font-size: 38px;
+    }
+
+    .agentTools button:first-child {
+        width: 42px;
+    }
+
+    .agentTools .sendButton {
+        height: 46px;
+        width: 46px;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .floatingArtifact {
+        animation: none;
+    }
+
+    .agentCard,
+    .promptExamples button,
+    .creationModes button,
+    .agentTools button {
+        transition: none;
+    }
+}

@@ -1,0 +1,258 @@
+@layer utilities {
+    .ant-picker-dropdown .ant-picker-time-panel-cell-selected:not(.ant-picker-time-panel-cell-disabled) .ant-picker-time-panel-cell-inner,
+    .ant-picker-dropdown .ant-picker-time-panel-cell-selected:not(.ant-picker-time-panel-cell-disabled) .ant-picker-time-panel-cell-inner:hover {
+        background: var(--ant-color-primary, #171717) !important;
+        color: var(--ant-color-text-light-solid, #ffffff) !important;
+        font-weight: 600;
+    }
+
+    @media (max-width: 639px) {
+        .ant-picker-dropdown {
+            left: 50% !important;
+            max-width: calc(100vw - 20px) !important;
+            min-width: 0 !important;
+            right: auto !important;
+            top: 50% !important;
+            transform: translate(-50%, -50%) !important;
+            width: max-content !important;
+        }
+
+        .ant-picker-dropdown .ant-picker-panel-container,
+        .ant-picker-dropdown .ant-picker-panel-layout {
+            max-height: calc(100vh - 24px);
+            max-width: 100% !important;
+            overflow: auto;
+        }
+
+        .ant-picker-dropdown .ant-picker-panels {
+            max-width: 100%;
+        }
+
+        .ant-picker-dropdown.ant-picker-dropdown-range .ant-picker-panels > .ant-picker-panel:not(:first-child) {
+            display: none !important;
+        }
+
+        .ant-picker-dropdown .ant-picker-date-panel,
+        .ant-picker-dropdown .ant-picker-year-panel,
+        .ant-picker-dropdown .ant-picker-month-panel,
+        .ant-picker-dropdown .ant-picker-decade-panel {
+            width: 232px !important;
+        }
+
+        .ant-picker-dropdown .ant-picker-datetime-panel {
+            display: block !important;
+            max-width: 232px;
+        }
+
+        .ant-picker-dropdown .ant-picker-header {
+            min-height: 34px;
+            padding-inline: 5px;
+        }
+
+        .ant-picker-dropdown .ant-picker-header > button {
+            height: 30px;
+            min-width: 24px;
+            padding: 0;
+            width: 24px;
+        }
+
+        .ant-picker-dropdown .ant-picker-header-view {
+            align-items: center;
+            display: inline-flex;
+            flex: 1 1 auto;
+            font-size: 13px;
+            gap: 2px;
+            justify-content: center;
+            line-height: 34px;
+            min-width: 0;
+            white-space: nowrap;
+        }
+
+        .ant-picker-dropdown .ant-picker-header-view button {
+            height: 30px;
+            min-width: auto;
+            padding-inline: 2px;
+            white-space: nowrap;
+            width: auto;
+        }
+
+        .ant-picker-dropdown .ant-picker-content {
+            border-spacing: 0 !important;
+            margin-inline: auto;
+            width: 196px !important;
+        }
+
+        .ant-picker-dropdown .ant-picker-content th,
+        .ant-picker-dropdown .ant-picker-cell {
+            font-size: 12px;
+            height: 28px !important;
+            min-width: 28px !important;
+            padding: 2px 0 !important;
+            width: 28px !important;
+        }
+
+        .ant-picker-dropdown .ant-picker-cell .ant-picker-cell-inner {
+            border-radius: 5px;
+            font-size: 12px;
+            height: 24px;
+            line-height: 24px;
+            min-width: 24px;
+            width: 24px;
+        }
+
+        .ant-picker-dropdown .ant-picker-year-panel .ant-picker-content,
+        .ant-picker-dropdown .ant-picker-month-panel .ant-picker-content,
+        .ant-picker-dropdown .ant-picker-decade-panel .ant-picker-content {
+            width: 216px !important;
+        }
+
+        .ant-picker-dropdown .ant-picker-year-panel .ant-picker-cell,
+        .ant-picker-dropdown .ant-picker-month-panel .ant-picker-cell,
+        .ant-picker-dropdown .ant-picker-decade-panel .ant-picker-cell {
+            height: 38px !important;
+            min-width: 54px !important;
+            width: 54px !important;
+        }
+
+        .ant-picker-dropdown .ant-picker-year-panel .ant-picker-cell .ant-picker-cell-inner,
+        .ant-picker-dropdown .ant-picker-month-panel .ant-picker-cell .ant-picker-cell-inner,
+        .ant-picker-dropdown .ant-picker-decade-panel .ant-picker-cell .ant-picker-cell-inner {
+            height: 28px;
+            line-height: 28px;
+            min-width: 48px;
+            padding-inline: 6px;
+            width: auto;
+        }
+
+        .ant-picker-dropdown .ant-picker-footer,
+        .ant-picker-dropdown .ant-picker-ranges {
+            max-width: 100%;
+        }
+
+        .ant-picker-dropdown .ant-picker-footer {
+            line-height: 34px;
+        }
+
+        .ant-picker-dropdown .ant-picker-ranges {
+            min-height: 40px;
+            padding-block: 5px;
+        }
+
+        .ant-picker-dropdown .ant-picker-time-panel {
+            border-inline-start: 0 !important;
+            border-top: 1px solid rgba(15, 23, 42, 0.08);
+            height: auto !important;
+            width: 232px !important;
+        }
+
+        html.dark .ant-picker-dropdown .ant-picker-time-panel {
+            border-top-color: rgba(255, 255, 255, 0.1);
+        }
+
+        .ant-picker-dropdown .ant-picker-time-panel-column {
+            flex: 1 1 0;
+            height: 116px !important;
+            max-height: 116px;
+            min-width: 0;
+            overflow-y: auto;
+            width: auto;
+        }
+
+        .ant-picker-dropdown .ant-picker-time-panel .ant-picker-content {
+            height: 116px !important;
+            width: 100% !important;
+        }
+
+        .ant-picker-dropdown .ant-picker-time-panel-cell-inner {
+            font-size: 12px;
+            height: 28px !important;
+            line-height: 28px !important;
+            margin-inline: 2px !important;
+            padding-inline: 0 !important;
+            text-align: center;
+        }
+    }
+
+    .admin-log-date-range.ant-picker-range {
+        gap: 0;
+        justify-self: end;
+        width: min(100%, 286px) !important;
+    }
+
+    .admin-log-date-range.ant-picker-range .ant-picker-input {
+        flex: 0 0 94px;
+        min-width: 0;
+        width: 94px;
+    }
+
+    .admin-log-date-range.ant-picker-range .ant-picker-input > input {
+        flex: 0 0 94px;
+        min-width: 0;
+        width: 94px;
+    }
+
+    .admin-log-date-range.ant-picker-range .ant-picker-range-separator {
+        flex: 0 0 auto;
+        padding-inline: 2px;
+    }
+
+    .admin-log-date-range.ant-picker-range .ant-picker-suffix {
+        flex: 0 0 auto;
+        margin-inline-start: 6px;
+    }
+
+    @media (max-width: 639px) {
+        .admin-log-date-range.ant-picker-range {
+            justify-self: stretch;
+            width: 100% !important;
+        }
+
+        .admin-log-date-range.ant-picker-range .ant-picker-input {
+            flex: 1 1 0;
+            width: auto;
+        }
+
+        .admin-log-date-range.ant-picker-range .ant-picker-input > input {
+            flex: 1 1 0;
+            width: 100%;
+            text-align: center;
+        }
+
+        .admin-log-date-range.ant-picker-range .ant-picker-range-separator {
+            padding-inline: 6px;
+        }
+
+        .admin-log-date-range.ant-picker-range .ant-picker-suffix {
+            margin-inline-start: 4px;
+        }
+    }
+
+    @keyframes canvas-batch-child-in {
+        from {
+            opacity: 0;
+            transform: translate(var(--batch-from-x), var(--batch-from-y)) rotate(var(--batch-from-rotate)) scale(0.72);
+        }
+
+        72% {
+            opacity: 1;
+            transform: translate(0, 0) rotate(-1deg) scale(1.015);
+        }
+
+        to {
+            opacity: 1;
+            transform: translate(0, 0) rotate(0) scale(1);
+        }
+    }
+
+    @keyframes canvas-batch-child-out {
+        from {
+            opacity: 1;
+            transform: translate(0, 0) rotate(0) scale(1);
+        }
+
+        to {
+            opacity: 0;
+            transform: translate(var(--batch-from-x), var(--batch-from-y)) rotate(var(--batch-from-rotate)) scale(0.72);
+        }
+    }
+}

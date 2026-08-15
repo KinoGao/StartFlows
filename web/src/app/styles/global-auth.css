@@ -1,0 +1,282 @@
+@layer utilities {
+    .landing-feature-panel,
+    .landing-stat-pill,
+    .landing-auth-shell,
+    .auth-panel {
+        border: 1px solid rgba(15, 23, 42, 0.08);
+        background: rgba(255, 255, 255, 0.82);
+        box-shadow: 0 20px 80px rgba(15, 23, 42, 0.08);
+        backdrop-filter: blur(18px);
+    }
+
+    .dark .landing-auth-shell,
+    .dark .auth-panel {
+        border-color: rgba(255, 255, 255, 0.1);
+        background: linear-gradient(180deg, rgba(15, 23, 42, 0.74), rgba(2, 6, 23, 0.66));
+        box-shadow: 0 20px 80px rgba(2, 132, 199, 0.12);
+    }
+
+    .landing-feature-panel,
+    .landing-stat-pill {
+        color: #0f172a;
+        background: linear-gradient(180deg, rgba(255, 255, 255, 0.88), rgba(248, 250, 252, 0.72));
+        border-color: rgba(14, 165, 233, 0.12);
+        box-shadow:
+            0 18px 44px rgba(15, 23, 42, 0.055),
+            inset 0 1px 0 rgba(255, 255, 255, 0.88);
+    }
+
+    .dark .landing-feature-panel,
+    .dark .landing-stat-pill {
+        color: #ffffff;
+        background: linear-gradient(180deg, rgba(15, 23, 42, 0.74), rgba(2, 6, 23, 0.66));
+        border-color: rgba(255, 255, 255, 0.1);
+        box-shadow: 0 20px 80px rgba(2, 132, 199, 0.12);
+    }
+
+    .landing-hero-copy {
+        background: transparent;
+        padding: clamp(8px, 2vw, 24px) 0;
+    }
+
+    .landing-capability-stage {
+        background: radial-gradient(circle at 50% 0%, rgba(14, 165, 233, 0.1), transparent 38%), linear-gradient(180deg, rgba(255, 255, 255, 0.64), rgba(248, 250, 252, 0.38));
+        border: 1px solid rgba(226, 232, 240, 0.72);
+        border-radius: 18px;
+        box-shadow:
+            0 30px 80px rgba(15, 23, 42, 0.07),
+            inset 0 1px 0 rgba(255, 255, 255, 0.82);
+        padding: 18px;
+        position: relative;
+    }
+
+    .landing-capability-stage::before {
+        background: linear-gradient(90deg, transparent, rgba(14, 165, 233, 0.28), rgba(168, 85, 247, 0.16), transparent);
+        content: "";
+        height: 1px;
+        left: 24px;
+        position: absolute;
+        right: 24px;
+        top: 0;
+    }
+
+    .dark .landing-capability-stage {
+        background: radial-gradient(circle at 50% 0%, rgba(34, 211, 238, 0.13), transparent 42%), linear-gradient(180deg, rgba(15, 23, 42, 0.62), rgba(2, 6, 23, 0.34));
+        border-color: rgba(255, 255, 255, 0.08);
+        box-shadow:
+            0 30px 100px rgba(0, 0, 0, 0.26),
+            inset 0 1px 0 rgba(255, 255, 255, 0.08);
+    }
+
+    .landing-auth-column {
+        min-height: min(680px, calc(100dvh - 8rem));
+        padding: clamp(22px, 4vw, 58px) clamp(10px, 2vw, 32px);
+    }
+
+    .landing-auth-modal .ant-modal-content {
+        background: rgba(255, 255, 255, 0.99);
+        border: 1px solid rgba(72, 67, 99, 0.13);
+        border-radius: 8px;
+        overflow: hidden;
+        padding: 0;
+        box-shadow: 0 28px 84px rgba(31, 29, 43, 0.16);
+    }
+
+    .dark .landing-auth-modal .ant-modal-content {
+        background: rgba(20, 21, 26, 0.99);
+        border-color: rgba(255, 255, 255, 0.1);
+        box-shadow: 0 28px 90px rgba(0, 0, 0, 0.42);
+    }
+
+    .landing-auth-modal .ant-modal-body {
+        padding: 0;
+    }
+
+    .landing-auth-modal .ant-modal-close {
+        color: rgba(15, 23, 42, 0.58);
+        inset-inline-end: 12px;
+        top: 12px;
+    }
+
+    .dark .landing-auth-modal .ant-modal-close {
+        color: rgba(255, 255, 255, 0.72);
+    }
+
+    .landing-auth-modal-shell {
+        background: #ffffff;
+        display: grid;
+        grid-template-columns: minmax(220px, 0.74fr) minmax(0, 1.26fr);
+        min-height: 440px;
+    }
+
+    .dark .landing-auth-modal-shell {
+        background: #14151a;
+    }
+
+    .landing-auth-modal-brand {
+        background: linear-gradient(145deg, #fbf9ff 0%, #f5f4fd 42%, #f3f7ff 72%, #fff9fc 100%);
+        border-right: 1px solid rgba(15, 23, 42, 0.08);
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        padding: 30px 28px;
+    }
+
+    .dark .landing-auth-modal-brand {
+        background: linear-gradient(145deg, #1d1a23 0%, #191921 46%, #171d24 76%, #1d191e 100%);
+        border-right-color: rgba(255, 255, 255, 0.08);
+    }
+
+    .landing-auth-brand-logo {
+        height: 44px;
+        width: 44px;
+    }
+
+    .landing-auth-modal-form {
+        align-items: center;
+        display: flex;
+        padding: 28px 32px;
+    }
+
+    .landing-auth-modal .auth-panel {
+        background: transparent;
+        border: 0;
+        box-shadow: none;
+        backdrop-filter: none;
+    }
+
+    .landing-auth-modal .auth-panel form {
+        max-width: 340px;
+        margin-inline: auto;
+        width: 100%;
+    }
+
+    .landing-auth-modal .auth-panel .ant-btn {
+        height: 44px;
+        margin-top: 6px;
+    }
+
+    .landing-auth-modal .auth-panel form > div:last-child {
+        padding-top: 6px;
+    }
+
+    .landing-auth-modal .landing-auth-modal-copy h2 {
+        font-size: 1.65rem;
+    }
+
+    .landing-auth-modal .landing-auth-modal-copy p:last-child {
+        line-height: 1.65;
+    }
+
+    .auth-page-card {
+        border-radius: 8px;
+        background: rgba(255, 255, 255, 0.94) !important;
+        border-color: rgba(72, 67, 99, 0.13) !important;
+        box-shadow: 0 26px 80px rgba(31, 29, 43, 0.14) !important;
+        backdrop-filter: blur(22px);
+    }
+
+    .auth-page-brand-panel {
+        background: linear-gradient(145deg, rgba(251, 249, 255, 0.98) 0%, rgba(245, 244, 253, 0.97) 42%, rgba(243, 247, 255, 0.98) 72%, rgba(255, 249, 252, 0.98) 100%);
+        border-color: rgba(72, 67, 99, 0.1);
+    }
+
+    .dark .auth-page-card {
+        background: rgba(18, 19, 24, 0.94) !important;
+        border-color: rgba(255, 255, 255, 0.09) !important;
+        box-shadow: 0 26px 90px rgba(0, 0, 0, 0.4) !important;
+    }
+
+    .dark .auth-page-brand-panel {
+        background: linear-gradient(145deg, rgba(29, 26, 35, 0.98) 0%, rgba(25, 25, 33, 0.98) 46%, rgba(23, 29, 36, 0.98) 76%, rgba(29, 25, 30, 0.98) 100%);
+        border-color: rgba(255, 255, 255, 0.08);
+    }
+
+    .auth-reset-card {
+        background: rgba(255, 255, 255, 0.94);
+        border-color: rgba(72, 67, 99, 0.13);
+        border-radius: 8px;
+        box-shadow: 0 26px 80px rgba(31, 29, 43, 0.14);
+    }
+
+    .dark .auth-reset-card {
+        background: rgba(18, 19, 24, 0.94);
+        border-color: rgba(255, 255, 255, 0.09);
+        box-shadow: 0 26px 90px rgba(0, 0, 0, 0.4);
+    }
+
+    .auth-form-kicker,
+    .landing-auth-modal-kicker {
+        color: #71669f;
+    }
+
+    .dark .auth-form-kicker,
+    .dark .landing-auth-modal-kicker {
+        color: #b3aad3;
+    }
+
+    .auth-feature-dot,
+    .landing-auth-feature-dot {
+        background: #9b91c2;
+    }
+
+    .dark .auth-feature-dot,
+    .dark .landing-auth-feature-dot {
+        background: #9288b5;
+    }
+
+    .auth-submit-button.ant-btn {
+        height: 46px;
+        margin-top: 8px;
+        border-color: #0f172a !important;
+        background: #0f172a !important;
+        color: #ffffff !important;
+    }
+
+    .auth-submit-button.ant-btn:hover,
+    .auth-submit-button.ant-btn:focus-visible {
+        border-color: #1e293b !important;
+        background: #1e293b !important;
+        color: #ffffff !important;
+    }
+
+    .dark .auth-submit-button.ant-btn {
+        border-color: #f8fafc !important;
+        background: #f8fafc !important;
+        color: #0f172a !important;
+    }
+
+    .dark .auth-submit-button.ant-btn:hover,
+    .dark .auth-submit-button.ant-btn:focus-visible {
+        border-color: #e2e8f0 !important;
+        background: #e2e8f0 !important;
+        color: #0f172a !important;
+    }
+
+    .auth-submit-button.ant-btn:disabled,
+    .auth-submit-button.ant-btn:disabled:hover {
+        cursor: not-allowed;
+        border-color: #d6d3d1 !important;
+        background: #e7e5e4 !important;
+        color: #57534e !important;
+    }
+
+    .dark .auth-submit-button.ant-btn:disabled,
+    .dark .auth-submit-button.ant-btn:disabled:hover {
+        border-color: #44403c !important;
+        background: #292524 !important;
+        color: #d6d3d1 !important;
+    }
+
+    .auth-form-header {
+        padding-bottom: 8px;
+    }
+
+    .auth-panel label {
+        row-gap: 10px;
+    }
+
+    .auth-switch-link {
+        margin-top: 4px;
+    }
+}

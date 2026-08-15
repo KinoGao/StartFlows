@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 安全漏洞私密报告
+    url: https://github.com/csyqlz/VOZEB-PRO/security/advisories/new
+    about: API Key、鉴权绕过、支付和远程执行等安全问题请勿公开提交
+  - name: 项目文档
+    url: https://github.com/csyqlz/VOZEB-PRO#readme
+    about: 安装、配置和常见问题优先查看项目说明

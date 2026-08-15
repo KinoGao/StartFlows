@@ -1,0 +1,139 @@
+name: Quality
+run-name: Web 与文档质量检查 · ${{ github.ref_name }}
+
+on:
+  push:
+    branches: ["main"]
+    tags: ["v*", "VOZEB-PRO-v*"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  web:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16.6-alpine
+        env:
+          POSTGRES_DB: vozeb_pro_e2e
+          POSTGRES_USER: vozeb
+          POSTGRES_PASSWORD: vozeb-e2e-password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U vozeb -d vozeb_pro_e2e"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Setup pnpm
+        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+        with:
+          version: 11.9.0
+      - name: Setup Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: web/pnpm-lock.yaml
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Dependency audit
+        run: pnpm audit --audit-level moderate
+      - name: ESLint
+        run: pnpm run lint
+      - name: Type check
+        run: pnpm run typecheck
+      - name: Unit tests
+        run: pnpm test
+      - name: Format check
+        run: pnpm run format:check
+      - name: Production build
+        run: pnpm run build
+        env:
+          NEXT_SKIP_BUILD_TYPECHECK: "1"
+      - name: Install Playwright Chromium
+        run: pnpm exec playwright install --with-deps chromium
+      - name: Browser E2E
+        run: pnpm run e2e
+        env:
+          VOZEB_PRO_E2E_DATABASE_URL: postgres://vozeb:vozeb-e2e-password@127.0.0.1:5432/vozeb_pro_e2e
+      - name: PostgreSQL integration tests
+        run: >-
+          pnpm exec vitest run --no-file-parallelism
+          src/lib/server/database/auth-entity-concurrency.postgres.test.ts
+          src/lib/server/admin-backup-store.postgres.test.ts
+          src/lib/server/points-wallet-idempotency.postgres.test.ts
+          src/lib/server/database/work-community-postgres.test.ts
+        env:
+          VOZEB_PRO_DATABASE_PROVIDER: postgres
+          DATABASE_URL: postgres://vozeb:vozeb-e2e-password@127.0.0.1:5432/vozeb_pro_e2e
+          VOZEB_PRO_ENCRYPTION_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+          VOZEB_PRO_RUN_POSTGRES_INTEGRATION: "1"
+          RUN_WORK_COMMUNITY_POSTGRES_INTEGRATION: "1"
+      - name: Upload browser artifacts
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: web-playwright-report
+          path: |
+            web/playwright-report
+            web/.e2e-artifacts
+          if-no-files-found: ignore
+          retention-days: 7
+
+  docs:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: docs
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Setup pnpm
+        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+        with:
+          version: 11.9.0
+      - name: Setup Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: docs/pnpm-lock.yaml
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Dependency audit
+        run: pnpm audit --audit-level moderate
+      - name: Type check
+        run: pnpm run types:check
+      - name: Production build
+        run: pnpm run build
+
+  security:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - name: Checkout complete history
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+      - name: Scan committed secrets
+        uses: gitleaks/gitleaks-action@ff98106e4c7b2bc287b24eaf42907196329070c7 # v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@47be0dbd5113ab1b79fe2dd3f68bdf7e426cdc87 # v3
+        with:
+          languages: javascript-typescript
+      - name: Analyze JavaScript and TypeScript
+        uses: github/codeql-action/analyze@47be0dbd5113ab1b79fe2dd3f68bdf7e426cdc87 # v3

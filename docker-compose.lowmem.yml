@@ -1,0 +1,55 @@
+services:
+  app:
+    image: ${VOZEB_PRO_IMAGE:-ghcr.io/csyqlz/vozeb-pro:v0.0.6}
+    env_file:
+      - .env
+    ports:
+      - "3000:3000"
+    volumes:
+      - vozeb-pro-data:/app/web/.data
+    environment:
+      NODE_OPTIONS: "--max-old-space-size=384"
+      UV_THREADPOOL_SIZE: "2"
+      NEXT_TELEMETRY_DISABLED: "1"
+      VOZEB_PRO_DATA_DIR: /app/web/.data
+      VOZEB_PRO_INTERNAL_ORIGIN: http://127.0.0.1:3000
+      VOZEB_PRO_DATABASE_PROVIDER: postgres
+      DATABASE_URL: ${DATABASE_URL:?低内存部署请在 .env 中配置外部 PostgreSQL DATABASE_URL}
+      VOZEB_PRO_DATABASE_POOL_MAX: ${VOZEB_PRO_DATABASE_POOL_MAX:-5}
+      VOZEB_PRO_DATABASE_SSL: ${VOZEB_PRO_DATABASE_SSL:-1}
+      VOZEB_PRO_ENCRYPTION_KEY: ${VOZEB_PRO_ENCRYPTION_KEY:?请在 .env 中配置 VOZEB_PRO_ENCRYPTION_KEY}
+      VOZEB_PRO_INSTALL_TOKEN: ${VOZEB_PRO_INSTALL_TOKEN:?请在 .env 中配置至少 32 位一次性安装令牌}
+      VOZEB_PRO_MAINTENANCE_TOKEN: ${VOZEB_PRO_MAINTENANCE_TOKEN:?请在 .env 中配置至少 32 位维护令牌}
+      VOZEB_PRO_WORKER_TOKEN: ${VOZEB_PRO_WORKER_TOKEN:?请在 .env 中配置独立的至少 32 位 Worker 令牌}
+    mem_limit: 512m
+    memswap_limit: 768m
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:3000/api/health/live').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))",
+        ]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+
+  generation-worker:
+    image: ${VOZEB_PRO_IMAGE:-ghcr.io/csyqlz/vozeb-pro:v0.0.6}
+    command: ["node", "/app/web/scripts/generation-worker.mjs"]
+    environment:
+      NODE_OPTIONS: "--max-old-space-size=64"
+      VOZEB_PRO_WORKER_API_ORIGIN: http://app:3000
+      VOZEB_PRO_WORKER_TOKEN: ${VOZEB_PRO_WORKER_TOKEN:?请在 .env 中配置独立的至少 32 位 Worker 令牌}
+    depends_on:
+      app:
+        condition: service_healthy
+    mem_limit: 96m
+    memswap_limit: 128m
+    restart: unless-stopped
+
+volumes:
+  vozeb-pro-data:

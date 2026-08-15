@@ -1,0 +1,77 @@
+@layer components {
+    .ant-select-dropdown {
+        border: 1px solid var(--border) !important;
+        border-radius: 8px !important;
+    }
+
+    .ant-select-dropdown .ant-select-item,
+    .ant-cascader-dropdown .ant-cascader-menu-item,
+    .ant-tree-select-dropdown .ant-select-tree-node-content-wrapper {
+        border-radius: 6px !important;
+    }
+
+    .ant-select-dropdown .ant-select-item-option-selected:not(.ant-select-item-option-disabled),
+    .ant-select-dropdown .ant-select-item-option-selected.ant-select-item-option-active:not(.ant-select-item-option-disabled):not(:hover) {
+        background: transparent !important;
+        font-weight: 400;
+    }
+
+    .ant-select-dropdown .ant-select-item-option:hover:not(.ant-select-item-option-disabled) {
+        background: #f4f5f7 !important;
+    }
+
+    .dark .ant-select-dropdown .ant-select-item-option:hover:not(.ant-select-item-option-disabled) {
+        background: #262b31 !important;
+    }
+
+    .ant-select-dropdown:has(.rc-virtual-list-scrollbar-thumb)::before,
+    .ant-select-dropdown:has(.rc-virtual-list-scrollbar-thumb)::after,
+    .ant-cascader-dropdown:has(.ant-cascader-menu-scrollbar)::before,
+    .ant-cascader-dropdown:has(.ant-cascader-menu-scrollbar)::after {
+        border-color: currentColor;
+        border-style: solid;
+        border-width: 1px 1px 0 0;
+        content: "";
+        height: 6px;
+        inset-inline-end: 7px;
+        opacity: 0.42;
+        pointer-events: none;
+        position: absolute;
+        width: 6px;
+        z-index: 2;
+    }
+
+    .ant-select-dropdown:has(.rc-virtual-list-scrollbar-thumb)::before,
+    .ant-cascader-dropdown:has(.ant-cascader-menu-scrollbar)::before {
+        inset-block-start: 9px;
+        transform: rotate(-45deg);
+    }
+
+    .ant-select-dropdown:has(.rc-virtual-list-scrollbar-thumb)::after,
+    .ant-cascader-dropdown:has(.ant-cascader-menu-scrollbar)::after {
+        inset-block-end: 9px;
+        transform: rotate(135deg);
+    }
+
+    .ant-select-dropdown:has(.rc-virtual-list-scrollbar-thumb) .ant-select-item,
+    .ant-cascader-dropdown:has(.ant-cascader-menu-scrollbar) .ant-cascader-menu-item {
+        padding-inline-end: 22px !important;
+    }
+
+    .ant-select-dropdown .rc-virtual-list-scrollbar,
+    .ant-cascader-dropdown .ant-cascader-menu-scrollbar {
+        display: none !important;
+    }
+
+    .ant-select-dropdown .rc-virtual-list-holder,
+    .ant-cascader-dropdown .ant-cascader-menu,
+    .ant-tree-select-dropdown .ant-select-tree-list-holder {
+        scrollbar-width: none;
+    }
+
+    .ant-select-dropdown .rc-virtual-list-holder::-webkit-scrollbar,
+    .ant-cascader-dropdown .ant-cascader-menu::-webkit-scrollbar,
+    .ant-tree-select-dropdown .ant-select-tree-list-holder::-webkit-scrollbar {
+        display: none;
+    }
+}

@@ -1,0 +1,9 @@
+* @csyqlz
+
+/.github/ @csyqlz
+/Dockerfile @csyqlz
+/docker-compose*.yml @csyqlz
+/web/src/app/api/ @csyqlz
+/web/src/lib/auth/ @csyqlz
+/web/src/lib/server/ @csyqlz
+/docs/content/docs/backend/ @csyqlz

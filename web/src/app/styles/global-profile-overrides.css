@@ -1,0 +1,265 @@
+.profile-page-scroll {
+    overscroll-behavior-y: contain;
+}
+
+.billing-plans-modal .ant-modal,
+.billing-checkout-modal .ant-modal {
+    max-width: calc(100vw - 16px);
+    padding-bottom: 0;
+}
+
+.billing-plans-modal .ant-modal-body {
+    scrollbar-width: none;
+}
+
+.billing-plans-modal .ant-modal-body::-webkit-scrollbar {
+    display: none;
+}
+
+.billing-plans-modal .ant-modal-content,
+.billing-checkout-modal .ant-modal-content {
+    overflow: hidden;
+    border: 1px solid rgba(120, 113, 108, 0.18);
+    border-radius: 24px;
+    background: #ffffff;
+    box-shadow: 0 30px 90px rgba(15, 23, 42, 0.24);
+}
+
+.billing-plans-modal .ant-modal-content {
+    padding: 0;
+}
+
+.billing-plans-modal .ant-modal-close {
+    top: 14px;
+    inset-inline-end: 14px;
+    z-index: 5;
+    background: rgba(255, 255, 255, 0.08);
+    color: rgba(255, 255, 255, 0.84);
+}
+
+.billing-plans-modal .ant-modal-close:hover {
+    background: rgba(255, 255, 255, 0.16);
+    color: #ffffff;
+}
+
+.billing-checkout-modal .ant-modal-close {
+    top: 14px;
+    inset-inline-end: 14px;
+    z-index: 5;
+    background: #f5f5f4;
+    color: #44403c;
+}
+
+.billing-checkout-modal .ant-modal-close:hover {
+    background: #e7e5e4;
+    color: #0c0a09;
+}
+
+.billing-checkout-provider[aria-pressed="true"] .billing-checkout-provider-title,
+.billing-checkout-provider[aria-pressed="true"] svg {
+    color: currentColor !important;
+}
+
+.account-menu-dropdown .ant-dropdown-menu {
+    width: min(18.5rem, calc(100vw - 24px));
+    padding: 8px;
+    border: 1px solid #e7e5e4;
+    border-radius: 14px;
+    box-shadow: 0 18px 50px rgba(15, 23, 42, 0.16);
+}
+
+.account-menu-dropdown .ant-dropdown-menu-item-group-title {
+    padding: 4px 6px 6px;
+}
+
+.account-menu-dropdown .ant-dropdown-menu-item {
+    min-height: 38px;
+    margin-block: 1px;
+    padding-inline: 10px;
+}
+
+.account-menu-dropdown .ant-dropdown-menu-item-divider {
+    margin-block: 5px;
+}
+
+.account-menu-dropdown .account-upgrade-button {
+    color: #f2c76e !important;
+}
+
+.account-menu-dropdown .account-upgrade-button:hover {
+    color: #ffe09a !important;
+}
+
+.dark .billing-plans-modal .ant-modal-content,
+.dark .billing-checkout-modal .ant-modal-content {
+    border-color: rgba(255, 255, 255, 0.12);
+    background: #101113;
+    box-shadow: 0 32px 100px rgba(0, 0, 0, 0.56);
+}
+
+.dark .billing-checkout-modal .ant-modal-close {
+    background: #292524;
+    color: #d6d3d1;
+}
+
+.dark .billing-checkout-modal .ant-modal-close:hover {
+    background: #44403c;
+    color: #ffffff;
+}
+
+.dark .account-menu-dropdown .ant-dropdown-menu {
+    border-color: #292524;
+    background: #151515;
+    box-shadow: 0 22px 60px rgba(0, 0, 0, 0.46);
+}
+
+.dark .account-menu-dropdown .account-upgrade-button {
+    color: #8a6116 !important;
+}
+
+.dark .account-menu-dropdown .account-upgrade-button:hover {
+    color: #6f4d10 !important;
+}
+
+@media (max-width: 640px) {
+    .billing-plans-modal .ant-modal {
+        max-width: calc(100vw - 8px);
+    }
+
+    .billing-plans-modal .ant-modal-content,
+    .billing-checkout-modal .ant-modal-content {
+        border-radius: 18px;
+    }
+
+    .billing-plans-modal .ant-modal-close,
+    .billing-checkout-modal .ant-modal-close {
+        top: 10px;
+        inset-inline-end: 10px;
+    }
+}
+
+.profile-page-scroll .profile-primary-button.ant-btn,
+.profile-page-scroll .profile-primary-button.ant-btn-primary {
+    background: #0c0a09 !important;
+    border-color: #0c0a09 !important;
+    color: #ffffff !important;
+    box-shadow: 0 10px 24px rgba(15, 23, 42, 0.14) !important;
+}
+
+.profile-page-scroll .profile-primary-button.ant-btn:hover,
+.profile-page-scroll .profile-primary-button.ant-btn-primary:hover {
+    background: #000000 !important;
+    border-color: #000000 !important;
+    color: #ffffff !important;
+}
+
+.profile-page-scroll .profile-secondary-button.ant-btn {
+    background: rgba(255, 255, 255, 0.92) !important;
+    border-color: #e7e5e4 !important;
+    color: #1c1917 !important;
+    box-shadow: 0 8px 20px rgba(15, 23, 42, 0.08) !important;
+}
+
+.profile-page-scroll .profile-secondary-button.ant-btn:hover {
+    background: #ffffff !important;
+    border-color: #d6d3d1 !important;
+    color: #0c0a09 !important;
+}
+
+.profile-page-scroll .profile-danger-button.ant-btn {
+    background: #fff7ed !important;
+    border-color: #fed7aa !important;
+    color: #9a3412 !important;
+    box-shadow: 0 8px 20px rgba(154, 52, 18, 0.08) !important;
+}
+
+.profile-page-scroll .profile-danger-button.ant-btn:hover {
+    background: #ffedd5 !important;
+    border-color: #fdba74 !important;
+    color: #7c2d12 !important;
+}
+
+.profile-page-scroll .profile-email-code-search .ant-input-search-button,
+.profile-page-scroll .profile-email-code-search .ant-input-search-btn {
+    background: #0c0a09 !important;
+    border-color: #0c0a09 !important;
+    color: #ffffff !important;
+}
+
+.profile-page-scroll .profile-email-code-search .ant-input-search-button:hover,
+.profile-page-scroll .profile-email-code-search .ant-input-search-btn:hover {
+    background: #000000 !important;
+    border-color: #000000 !important;
+    color: #ffffff !important;
+}
+
+.profile-page-scroll .profile-primary-button.ant-btn svg,
+.profile-page-scroll .profile-secondary-button.ant-btn svg,
+.profile-page-scroll .profile-danger-button.ant-btn svg,
+.profile-page-scroll .profile-email-code-search .ant-input-search-button svg,
+.profile-page-scroll .profile-email-code-search .ant-input-search-btn svg {
+    color: currentColor;
+}
+
+.profile-page-scroll .profile-primary-button.ant-btn:disabled,
+.profile-page-scroll .profile-secondary-button.ant-btn:disabled,
+.profile-page-scroll .profile-danger-button.ant-btn:disabled,
+.profile-page-scroll .profile-email-code-search .ant-input-search-button:disabled,
+.profile-page-scroll .profile-email-code-search .ant-input-search-btn:disabled {
+    opacity: 0.55;
+}
+
+.dark .profile-page-scroll .profile-primary-button.ant-btn,
+.dark .profile-page-scroll .profile-primary-button.ant-btn-primary {
+    background: #fafaf9 !important;
+    border-color: #fafaf9 !important;
+    color: #0c0a09 !important;
+    box-shadow: 0 12px 28px rgba(0, 0, 0, 0.28) !important;
+}
+
+.dark .profile-page-scroll .profile-primary-button.ant-btn:hover,
+.dark .profile-page-scroll .profile-primary-button.ant-btn-primary:hover {
+    background: #ffffff !important;
+    border-color: #ffffff !important;
+    color: #0c0a09 !important;
+}
+
+.dark .profile-page-scroll .profile-secondary-button.ant-btn {
+    background: rgba(28, 25, 23, 0.88) !important;
+    border-color: #44403c !important;
+    color: #f5f5f4 !important;
+    box-shadow: 0 10px 22px rgba(0, 0, 0, 0.22) !important;
+}
+
+.dark .profile-page-scroll .profile-secondary-button.ant-btn:hover {
+    background: #292524 !important;
+    border-color: #57534e !important;
+    color: #ffffff !important;
+}
+
+.dark .profile-page-scroll .profile-danger-button.ant-btn {
+    background: rgba(127, 29, 29, 0.28) !important;
+    border-color: rgba(248, 113, 113, 0.34) !important;
+    color: #fecaca !important;
+    box-shadow: 0 10px 22px rgba(0, 0, 0, 0.22) !important;
+}
+
+.dark .profile-page-scroll .profile-danger-button.ant-btn:hover {
+    background: rgba(153, 27, 27, 0.42) !important;
+    border-color: rgba(252, 165, 165, 0.5) !important;
+    color: #ffffff !important;
+}
+
+.dark .profile-page-scroll .profile-email-code-search .ant-input-search-button,
+.dark .profile-page-scroll .profile-email-code-search .ant-input-search-btn {
+    background: #fafaf9 !important;
+    border-color: #fafaf9 !important;
+    color: #0c0a09 !important;
+}
+
+.dark .profile-page-scroll .profile-email-code-search .ant-input-search-button:hover,
+.dark .profile-page-scroll .profile-email-code-search .ant-input-search-btn:hover {
+    background: #ffffff !important;
+    border-color: #ffffff !important;
+    color: #0c0a09 !important;
+}

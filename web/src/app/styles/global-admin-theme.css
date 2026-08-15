@@ -1,0 +1,477 @@
+.admin-console-page {
+    --admin-home-bg: #ffffff;
+    --admin-shell-bg: #ffffff;
+    --admin-shell-border: #e4e4e7;
+    --admin-shell-shadow: none;
+    --admin-panel-bg: #ffffff;
+    --admin-control-bg: #ffffff;
+    --admin-control-bg-hover: #fafafa;
+    --admin-control-border: #e4e4e7;
+    --admin-control-border-hover: #d4d4d8;
+    --admin-control-shadow: none;
+    --admin-control-text: #3f3f46;
+    --admin-control-text-hover: #18181b;
+    --admin-control-muted: #a1a1aa;
+    --admin-icon-bg: transparent;
+    --admin-icon-color: #71717a;
+    --admin-icon-ring: none;
+    --admin-progress-track: #f4f4f5;
+    --admin-progress-fill: #3f3f46;
+    --admin-chart-1: #0f766e;
+    --admin-chart-2: #2563eb;
+    --admin-chart-3: #d97706;
+    --admin-chart-4: #7c3aed;
+    --admin-chart-5: #059669;
+    --admin-chart-6: #db2777;
+    --admin-chart-track: #f0f0f1;
+    --admin-chart-area: rgb(24 24 27 / 0.08);
+    --admin-nav-item-bg: transparent;
+    --admin-nav-item-active-bg: #f4f4f5;
+    --admin-nav-item-border: transparent;
+    --admin-nav-item-active-border: transparent;
+    --admin-nav-item-active-shadow: inset 2px 0 0 #18181b;
+    --admin-nav-hover-bg: #fafafa;
+    background: var(--admin-home-bg) !important;
+    isolation: isolate;
+    overflow-x: hidden;
+}
+
+.dark .admin-console-page {
+    --admin-home-bg: #09090b;
+    --admin-shell-bg: #09090b;
+    --admin-shell-border: #27272a;
+    --admin-shell-shadow: none;
+    --admin-panel-bg: #09090b;
+    --admin-control-bg: #09090b;
+    --admin-control-bg-hover: #18181b;
+    --admin-control-border: #27272a;
+    --admin-control-border-hover: #3f3f46;
+    --admin-control-shadow: none;
+    --admin-control-text: #e4e4e7;
+    --admin-control-text-hover: #ffffff;
+    --admin-control-muted: #71717a;
+    --admin-icon-bg: transparent;
+    --admin-icon-color: #a1a1aa;
+    --admin-icon-ring: none;
+    --admin-progress-track: #27272a;
+    --admin-progress-fill: #d4d4d8;
+    --admin-chart-1: #2dd4bf;
+    --admin-chart-2: #60a5fa;
+    --admin-chart-3: #fbbf24;
+    --admin-chart-4: #c4b5fd;
+    --admin-chart-5: #34d399;
+    --admin-chart-6: #f472b6;
+    --admin-chart-track: #27272a;
+    --admin-chart-area: rgb(250 250 250 / 0.08);
+    --admin-nav-item-bg: transparent;
+    --admin-nav-item-active-bg: #18181b;
+    --admin-nav-item-border: transparent;
+    --admin-nav-item-active-border: transparent;
+    --admin-nav-item-active-shadow: inset 2px 0 0 #fafafa;
+    --admin-nav-hover-bg: #18181b;
+    background: var(--admin-home-bg) !important;
+}
+
+.admin-dashboard-shell {
+    isolation: isolate;
+    position: relative;
+    z-index: 1;
+}
+
+.admin-dashboard-shell::before {
+    content: "";
+    display: none;
+    z-index: -1;
+    pointer-events: none;
+    position: fixed;
+    inset: 0;
+}
+
+.admin-panel-surface,
+.admin-metric-card,
+.admin-section-summary {
+    border-color: #e4e4e7 !important;
+    background: var(--admin-panel-bg) !important;
+    box-shadow: none !important;
+}
+
+.dark .admin-panel-surface,
+.dark .admin-metric-card,
+.dark .admin-section-summary {
+    border-color: #27272a !important;
+    background: var(--admin-panel-bg) !important;
+    box-shadow: none !important;
+}
+
+.admin-section-nav,
+.admin-dashboard-header {
+    border-color: var(--admin-shell-border) !important;
+    background: var(--admin-shell-bg) !important;
+    box-shadow: var(--admin-shell-shadow) !important;
+}
+
+.admin-section-nav-list {
+    scrollbar-width: none;
+}
+
+.admin-section-nav-list::-webkit-scrollbar {
+    display: none;
+}
+
+.dark .admin-section-nav,
+.dark .admin-dashboard-header {
+    border-color: var(--admin-shell-border) !important;
+    background: var(--admin-shell-bg) !important;
+    box-shadow: var(--admin-shell-shadow) !important;
+}
+
+.admin-panel-header {
+    background: #ffffff;
+}
+
+.dark .admin-panel-header {
+    background: #09090b;
+}
+
+.admin-stat-pill {
+    background: #fafafa !important;
+    border-color: #e4e4e7 !important;
+}
+
+.dark .admin-stat-pill {
+    background: #18181b !important;
+    border-color: #27272a !important;
+}
+
+.admin-dashboard-section-icon,
+.admin-section-title-icon {
+    background: #f4f4f5 !important;
+    color: #52525b !important;
+    box-shadow: none !important;
+}
+
+.dark .admin-dashboard-section-icon,
+.dark .admin-section-title-icon {
+    background: #18181b !important;
+    color: #a1a1aa !important;
+    box-shadow: none !important;
+}
+
+.admin-section-nav-item.is-active {
+    background: var(--admin-nav-item-active-bg) !important;
+    border-color: transparent !important;
+    box-shadow: var(--admin-nav-item-active-shadow) !important;
+}
+
+.dark .admin-section-nav-item.is-active {
+    background: var(--admin-nav-item-active-bg) !important;
+    border-color: transparent !important;
+    color: #f8fafc !important;
+    box-shadow: var(--admin-nav-item-active-shadow) !important;
+}
+
+.admin-section-nav-item:not(.is-active):not([class*="bg-stone-950"]):hover {
+    background: var(--admin-nav-hover-bg) !important;
+    color: var(--admin-control-text-hover) !important;
+}
+
+.dark .admin-section-nav-item:not(.is-active):not([class*="dark:bg-white"]):hover {
+    background: var(--admin-nav-hover-bg) !important;
+    color: var(--admin-control-text-hover) !important;
+}
+
+.admin-mobile-menu-trigger,
+.admin-section-desktop-toggle,
+.admin-dashboard-header-actions .admin-dashboard-return-button,
+.admin-dashboard-header-actions .app-user-status-actions > button,
+.admin-dashboard-header-actions .app-user-status-actions > a,
+.admin-dashboard-header-actions .animated-theme-toggler,
+.admin-dashboard-header-actions [aria-label*="主题"] {
+    background: var(--admin-control-bg) !important;
+    border-color: var(--admin-control-border) !important;
+    color: var(--admin-control-text) !important;
+    box-shadow: var(--admin-control-shadow) !important;
+}
+
+.admin-mobile-menu-trigger:hover,
+.admin-section-desktop-toggle:hover,
+.admin-dashboard-header-actions .admin-dashboard-return-button:hover,
+.admin-dashboard-header-actions .app-user-status-actions > button:hover,
+.admin-dashboard-header-actions .app-user-status-actions > a:hover,
+.admin-dashboard-header-actions .animated-theme-toggler:hover,
+.admin-dashboard-header-actions [aria-label*="主题"]:hover {
+    background: var(--admin-control-bg-hover) !important;
+    border-color: var(--admin-control-border-hover) !important;
+    color: var(--admin-control-text-hover) !important;
+}
+
+.dark .admin-mobile-menu-trigger,
+.dark .admin-section-desktop-toggle,
+.dark .admin-dashboard-header-actions .admin-dashboard-return-button,
+.dark .admin-dashboard-header-actions .app-user-status-actions > button,
+.dark .admin-dashboard-header-actions .app-user-status-actions > a,
+.dark .admin-dashboard-header-actions .animated-theme-toggler,
+.dark .admin-dashboard-header-actions [aria-label*="主题"] {
+    background: var(--admin-control-bg) !important;
+    border-color: var(--admin-control-border) !important;
+    color: var(--admin-control-text) !important;
+    box-shadow: var(--admin-control-shadow) !important;
+}
+
+.dark .admin-mobile-menu-trigger:hover,
+.dark .admin-section-desktop-toggle:hover,
+.dark .admin-dashboard-header-actions .admin-dashboard-return-button:hover,
+.dark .admin-dashboard-header-actions .app-user-status-actions > button:hover,
+.dark .admin-dashboard-header-actions .app-user-status-actions > a:hover,
+.dark .admin-dashboard-header-actions .animated-theme-toggler:hover,
+.dark .admin-dashboard-header-actions [aria-label*="主题"]:hover {
+    background: var(--admin-control-bg-hover) !important;
+    border-color: var(--admin-control-border-hover) !important;
+    color: var(--admin-control-text-hover) !important;
+}
+
+.admin-dashboard-setup-pill {
+    background: var(--admin-control-bg) !important;
+    border-color: var(--admin-control-border) !important;
+    border-radius: 7px !important;
+    box-shadow: var(--admin-control-shadow) !important;
+    color: var(--admin-control-text) !important;
+    min-height: 34px;
+    padding: 6px 10px !important;
+}
+
+.admin-dashboard-setup-pill:hover {
+    transform: none !important;
+    background: var(--admin-control-bg-hover) !important;
+    border-color: var(--admin-control-border-hover) !important;
+}
+
+.admin-dashboard-setup-icon,
+.admin-section-nav-icon {
+    background: var(--admin-icon-bg) !important;
+    color: var(--admin-icon-color) !important;
+    box-shadow: var(--admin-icon-ring) !important;
+}
+
+.admin-dashboard-setup-icon {
+    border-radius: 0 !important;
+    height: 20px !important;
+    width: 20px !important;
+}
+
+.admin-dashboard-setup-title {
+    color: var(--admin-control-text) !important;
+}
+
+.admin-dashboard-setup-arrow,
+.admin-dashboard-setup-meta {
+    color: var(--admin-control-muted) !important;
+}
+
+.admin-dashboard-setup-track {
+    background: var(--admin-progress-track) !important;
+    box-shadow: none !important;
+    height: 5px !important;
+    margin-top: 3px !important;
+}
+
+.admin-dashboard-setup-progress {
+    background: var(--admin-progress-fill) !important;
+}
+
+.dark .admin-dashboard-setup-pill {
+    background: var(--admin-control-bg) !important;
+    border-color: var(--admin-control-border) !important;
+    box-shadow: var(--admin-control-shadow) !important;
+}
+
+.dark .admin-dashboard-setup-pill:hover {
+    background: var(--admin-control-bg-hover) !important;
+    border-color: var(--admin-control-border-hover) !important;
+}
+
+.dark .admin-dashboard-setup-icon,
+.dark .admin-section-nav-icon {
+    background: var(--admin-icon-bg) !important;
+    color: var(--admin-icon-color) !important;
+    box-shadow: var(--admin-icon-ring) !important;
+}
+
+.admin-section-nav-toggle {
+    background: var(--admin-control-bg) !important;
+    border-color: var(--admin-control-border) !important;
+    color: var(--admin-control-text) !important;
+    box-shadow: var(--admin-control-shadow) !important;
+}
+
+.dark .admin-section-nav-toggle {
+    background: var(--admin-control-bg) !important;
+    border-color: var(--admin-control-border) !important;
+    color: var(--admin-control-text) !important;
+    box-shadow: var(--admin-control-shadow) !important;
+}
+
+.admin-section-nav-item {
+    background: var(--admin-nav-item-bg) !important;
+    border-color: var(--admin-nav-item-border) !important;
+}
+
+.admin-section-nav-item.is-active {
+    background: var(--admin-nav-item-active-bg) !important;
+    border-color: var(--admin-nav-item-active-border) !important;
+    box-shadow: var(--admin-nav-item-active-shadow) !important;
+}
+
+.dark .admin-section-nav-item {
+    background: var(--admin-nav-item-bg) !important;
+    border-color: var(--admin-nav-item-border) !important;
+}
+
+.dark .admin-section-nav-item.is-active {
+    background: var(--admin-nav-item-active-bg) !important;
+    border-color: var(--admin-nav-item-active-border) !important;
+    box-shadow: var(--admin-nav-item-active-shadow) !important;
+}
+
+.admin-metric-grid > .admin-metric-card:nth-child(-n + 2),
+.admin-resource-grid > .admin-resource-stat:nth-child(-n + 2) {
+    border-bottom: 1px solid #e4e4e7;
+}
+
+.admin-metric-grid > .admin-metric-card:nth-child(odd),
+.admin-resource-grid > .admin-resource-stat:nth-child(odd) {
+    border-right: 1px solid #e4e4e7;
+}
+
+.dark .admin-metric-grid > .admin-metric-card:nth-child(-n + 2),
+.dark .admin-resource-grid > .admin-resource-stat:nth-child(-n + 2) {
+    border-bottom-color: #27272a;
+}
+
+.dark .admin-metric-grid > .admin-metric-card:nth-child(odd),
+.dark .admin-resource-grid > .admin-resource-stat:nth-child(odd) {
+    border-right-color: #27272a;
+}
+
+.admin-console-page .ant-btn,
+.admin-console-page .ant-input,
+.admin-console-page .ant-input-affix-wrapper,
+.admin-console-page .ant-input-number,
+.admin-console-page .ant-select-selector,
+.admin-console-page .ant-picker,
+.admin-console-page .ant-segmented {
+    border-radius: 7px !important;
+    box-shadow: none !important;
+}
+
+.admin-console-page [class~="rounded-xl"],
+.admin-console-page [class~="rounded-2xl"],
+.admin-console-page [class~="rounded-3xl"] {
+    border-radius: 8px !important;
+}
+
+.admin-console-page [class*="shadow-"] {
+    box-shadow: none !important;
+}
+
+.admin-console-page [class*="backdrop-blur"] {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+}
+
+.admin-console-page .ant-btn .lucide {
+    color: currentColor;
+    stroke: currentColor;
+}
+
+.admin-console-page .ant-table-wrapper .ant-table {
+    background: transparent;
+}
+
+.admin-console-page .ant-table-wrapper .ant-table-thead > tr > th {
+    background: #fafafa;
+    border-bottom-color: #e4e4e7;
+    color: #71717a;
+    font-size: 12px;
+}
+
+.admin-console-page .ant-table-wrapper .ant-table-tbody > tr > td {
+    border-bottom-color: #f0f0f1;
+}
+
+.dark .admin-console-page .ant-table-wrapper .ant-table-thead > tr > th {
+    background: #18181b;
+    border-bottom-color: #27272a;
+    color: #a1a1aa;
+}
+
+.dark .admin-console-page .ant-table-wrapper .ant-table-tbody > tr > td {
+    border-bottom-color: #27272a;
+}
+
+@media (min-width: 1024px) {
+    .admin-resource-grid > .admin-resource-stat {
+        border-bottom: 0 !important;
+        border-right: 1px solid #e4e4e7;
+    }
+
+    .admin-resource-grid > .admin-resource-stat:last-child {
+        border-right: 0;
+    }
+
+    .dark .admin-resource-grid > .admin-resource-stat {
+        border-right-color: #27272a;
+    }
+}
+
+@media (min-width: 1280px) {
+    .admin-metric-grid > .admin-metric-card {
+        border-bottom: 0 !important;
+        border-right: 1px solid #e4e4e7;
+    }
+
+    .admin-metric-grid > .admin-metric-card:last-child {
+        border-right: 0;
+    }
+
+    .dark .admin-metric-grid > .admin-metric-card {
+        border-right-color: #27272a;
+    }
+}
+
+@media (max-width: 640px) {
+    .admin-dashboard-setup-pill {
+        gap: 6px !important;
+        min-height: 34px;
+        padding: 4px 8px !important;
+    }
+
+    .admin-dashboard-setup-copy {
+        gap: 0 !important;
+    }
+
+    .admin-dashboard-setup-arrow,
+    .admin-dashboard-setup-track {
+        display: none !important;
+    }
+
+    .admin-dashboard-setup-title {
+        font-size: 11px !important;
+    }
+
+    .admin-dashboard-header-actions .admin-dashboard-return-button {
+        min-width: 34px !important;
+        padding-inline: 0 !important;
+        width: 34px !important;
+    }
+
+    .admin-dashboard-return-label {
+        display: none;
+    }
+
+    .admin-section-nav-toggle {
+        border-radius: 7px !important;
+        height: 32px !important;
+        width: 32px !important;
+    }
+}

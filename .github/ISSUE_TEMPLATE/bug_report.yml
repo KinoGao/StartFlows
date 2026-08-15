@@ -1,0 +1,44 @@
+name: Bug 报告
+description: 报告可以稳定复现的功能、部署或兼容问题
+title: "[Bug] "
+labels: [bug]
+body:
+  - type: checkboxes
+    attributes:
+      label: 提交前确认
+      options:
+        - label: 我已阅读 README、部署文档和现有 Issue，确认没有重复问题
+          required: true
+        - label: 我已删除日志、截图和配置中的 API Key、密码、Cookie、令牌与数据库连接串
+          required: true
+  - type: input
+    attributes:
+      label: VOZEB PRO 版本或提交
+      placeholder: 例如 v0.0.4 或 commit SHA
+    validations:
+      required: true
+  - type: dropdown
+    attributes:
+      label: 部署方式
+      options:
+        - Docker Compose
+        - 宝塔 Docker
+        - 外部 PostgreSQL
+        - 本地构建
+        - 其他
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: 问题与复现步骤
+      description: 写明入口、操作顺序、预期结果和实际结果
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: 脱敏日志
+      render: shell
+  - type: textarea
+    attributes:
+      label: 浏览器与服务器环境
+      placeholder: 操作系统、Node/Docker 版本、浏览器、CPU/内存、反向代理层数

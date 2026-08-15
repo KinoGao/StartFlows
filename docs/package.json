@@ -1,0 +1,34 @@
+{
+  "name": "vozeb-pro-docs",
+  "version": "0.0.6",
+  "private": true,
+  "scripts": {
+    "build": "next build",
+    "dev": "next dev -p 3001",
+    "start": "next start -p 3001",
+    "generate:source": "node --input-type=module -e \"import { postInstall } from 'fumadocs-mdx/next'; await postInstall();\"",
+    "types:check": "next typegen && npm run generate:source && tsc --noEmit",
+    "postinstall": "npm run generate:source"
+  },
+  "dependencies": {
+    "fumadocs-core": "16.14.3",
+    "fumadocs-mdx": "15.2.3",
+    "fumadocs-ui": "16.14.3",
+    "lucide-react": "^1.31.0",
+    "next": "16.3.0",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
+    "tailwind-merge": "^3.6.0",
+    "zbsearch": "^3.3.4"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.3.3",
+    "@types/mdx": "^2.0.13",
+    "@types/node": "^25.9.1",
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.4",
+    "postcss": "8.5.26",
+    "tailwindcss": "^4.3.3",
+    "typescript": "^6.0.3"
+  }
+}

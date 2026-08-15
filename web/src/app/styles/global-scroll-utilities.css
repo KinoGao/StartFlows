@@ -1,0 +1,135 @@
+@layer utilities {
+    .hide-scrollbar {
+        -ms-overflow-style: none;
+        scrollbar-width: none;
+    }
+
+    .hide-scrollbar::-webkit-scrollbar {
+        display: none;
+    }
+
+    .prompt-filter-tag.ant-tag-checkable {
+        margin: 0;
+        border: 1px solid transparent;
+        border-radius: 6px;
+        padding: 5px 10px;
+        color: #57534e;
+        font-size: 14px;
+        line-height: 1;
+        transition:
+            background 0.15s ease,
+            border-color 0.15s ease,
+            box-shadow 0.15s ease,
+            color 0.15s ease;
+    }
+
+    .prompt-filter-tag.ant-tag-checkable:hover {
+        background: rgba(28, 25, 23, 0.06);
+        color: #1c1917;
+    }
+
+    .prompt-filter-tag.ant-tag-checkable.is-active,
+    .prompt-filter-tag.ant-tag-checkable-checked {
+        background: #111111;
+        border-color: #111111;
+        color: #ffffff;
+        font-weight: 600;
+    }
+
+    .dark .prompt-filter-tag.ant-tag-checkable {
+        color: #e7e5e4;
+    }
+
+    .dark .prompt-filter-tag.ant-tag-checkable:hover {
+        background: rgba(255, 255, 255, 0.1);
+        color: #ffffff;
+    }
+
+    .dark .prompt-filter-tag.ant-tag-checkable.is-active,
+    .dark .prompt-filter-tag.ant-tag-checkable-checked {
+        background: rgba(250, 250, 249, 0.96);
+        border-color: rgba(255, 255, 255, 0.88);
+        box-shadow:
+            0 0 0 1px rgba(255, 255, 255, 0.18),
+            0 6px 18px rgba(0, 0, 0, 0.22);
+        color: #0c0a09 !important;
+        font-weight: 700;
+    }
+
+    .thin-scrollbar {
+        scrollbar-color: rgba(120, 113, 108, 0.45) transparent;
+        scrollbar-width: thin;
+    }
+
+    .thin-scrollbar::-webkit-scrollbar {
+        height: 4px;
+        width: 4px;
+    }
+
+    .thin-scrollbar::-webkit-scrollbar-thumb {
+        background: rgba(120, 113, 108, 0.45);
+        border-radius: 999px;
+    }
+
+    .hover-scrollbar {
+        scrollbar-color: transparent transparent;
+        scrollbar-width: thin;
+    }
+
+    .hover-scrollbar:hover {
+        scrollbar-color: rgba(120, 113, 108, 0.5) transparent;
+    }
+
+    .hover-scrollbar::-webkit-scrollbar {
+        height: 6px;
+        width: 6px;
+    }
+
+    .hover-scrollbar::-webkit-scrollbar-thumb {
+        background: transparent;
+        border-radius: 999px;
+    }
+
+    .hover-scrollbar:hover::-webkit-scrollbar-track {
+        background: rgba(120, 113, 108, 0.12);
+        border-radius: 999px;
+    }
+
+    .hover-scrollbar:hover::-webkit-scrollbar-thumb {
+        background: rgba(120, 113, 108, 0.5);
+    }
+
+    .hover-scrollbar-hint {
+        position: relative;
+    }
+
+    .hover-scrollbar-hint::after {
+        background: rgba(120, 113, 108, 0.42);
+        border-radius: 999px;
+        bottom: 4px;
+        content: "";
+        height: 3px;
+        left: 12px;
+        opacity: 0;
+        pointer-events: none;
+        position: absolute;
+        right: 12px;
+        transition: opacity 0.18s ease;
+    }
+
+    .hover-scrollbar-hint:hover::after {
+        opacity: 1;
+    }
+
+    /* Keep every scroll surface usable while removing browser-drawn tracks and thumbs. */
+    :where(*) {
+        -ms-overflow-style: none !important;
+        scrollbar-width: none !important;
+    }
+
+    :where(*)::-webkit-scrollbar {
+        display: none !important;
+        height: 0 !important;
+        width: 0 !important;
+    }
+}

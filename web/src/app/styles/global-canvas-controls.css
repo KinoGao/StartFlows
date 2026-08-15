@@ -1,0 +1,378 @@
+@layer utilities {
+    .canvas-control-select.ant-select .ant-select-selector,
+    .canvas-control-number.ant-input-number {
+        border-color: rgba(120, 113, 108, 0.32) !important;
+        box-shadow: none !important;
+    }
+
+    .canvas-compact-control.canvas-control-select.ant-select {
+        height: 100%;
+    }
+
+    .canvas-compact-control.canvas-control-select.ant-select .ant-select-selector,
+    .canvas-compact-control.canvas-control-number.ant-input-number {
+        height: 100% !important;
+    }
+
+    .canvas-compact-control.canvas-control-select.ant-select .ant-select-selection-item,
+    .canvas-compact-control.canvas-control-select.ant-select .ant-select-selection-placeholder {
+        align-items: center;
+        display: flex;
+    }
+
+    .canvas-compact-control.canvas-control-select.ant-select .ant-select-selection-item,
+    .canvas-compact-control.canvas-control-select.ant-select .ant-select-selection-placeholder,
+    .canvas-compact-control.canvas-control-select.ant-select .ant-select-selection-search-input,
+    .canvas-compact-control.canvas-control-number.ant-input-number .ant-input-number-input {
+        height: 100% !important;
+        line-height: 1 !important;
+    }
+
+    .canvas-composer-icon.ant-btn {
+        flex: 0 0 32px;
+        width: 32px;
+    }
+
+    .canvas-composer-tools {
+        container-type: inline-size;
+    }
+
+    .canvas-composer-mode-button {
+        width: 32px;
+    }
+
+    .canvas-composer-tools .canvas-composer-mode-button span,
+    .canvas-composer-tools .canvas-model-picker-text,
+    .canvas-composer-tools .canvas-select-chevron,
+    .canvas-composer-tools .canvas-composer-icon.ant-btn > span:not(.ant-btn-icon) {
+        display: none;
+    }
+
+    .canvas-composer-tools .canvas-composer-model-picker {
+        width: 32px;
+        min-width: 32px;
+        justify-content: center;
+        gap: 0;
+        padding-inline: 0;
+    }
+
+    .canvas-composer-tools .canvas-composer-settings {
+        min-width: 32px !important;
+        overflow: hidden;
+    }
+
+    .canvas-composer-tools .canvas-composer-settings > span:not(.ant-btn-icon) {
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .dark .canvas-generate-button.ant-btn-primary:not(.ant-btn-dangerous):not(:disabled) {
+        background: #f5f5f4;
+        border-color: #f5f5f4;
+        color: #111827;
+        box-shadow: 0 10px 24px rgba(0, 0, 0, 0.26);
+    }
+
+    .dark .canvas-generate-button.ant-btn-primary:not(.ant-btn-dangerous):not(:disabled):hover {
+        background: #ffffff;
+        border-color: #ffffff;
+        color: #020617;
+    }
+
+    .dark .canvas-generate-button.ant-btn-primary:disabled {
+        background: rgba(245, 245, 244, 0.36);
+        border-color: rgba(245, 245, 244, 0.22);
+        color: rgba(17, 24, 39, 0.7);
+    }
+
+    @container (min-width: 440px) {
+        .canvas-composer-mode-button {
+            padding-inline: 8px;
+            width: auto;
+        }
+
+        .canvas-composer-tools .canvas-composer-mode-button span {
+            display: inline;
+            font-size: 12px;
+            line-height: 1;
+        }
+
+        .canvas-composer-icon.ant-btn {
+            flex: 0 1 auto;
+            max-width: 170px;
+            width: auto !important;
+        }
+
+        .canvas-composer-tools .canvas-composer-icon.ant-btn > span:not(.ant-btn-icon) {
+            display: inline-flex;
+            min-width: 0;
+        }
+
+        .canvas-composer-tools .canvas-composer-model-picker {
+            width: auto;
+            min-width: 9rem;
+            justify-content: flex-start;
+            gap: 0.5rem;
+            padding-inline: 0.75rem;
+        }
+
+        .canvas-composer-tools .canvas-model-picker-text,
+        .canvas-composer-tools .canvas-select-chevron {
+            display: inline;
+        }
+    }
+
+    .canvas-control-select.ant-select-focused .ant-select-selector,
+    .canvas-control-number.ant-input-number-focused {
+        border-color: #a8a29e !important;
+    }
+
+    .dark .canvas-control-select.ant-select .ant-select-selector,
+    .dark .canvas-control-number.ant-input-number {
+        border-color: rgba(214, 211, 209, 0.2) !important;
+    }
+
+    .dark .canvas-control-select.ant-select-focused .ant-select-selector,
+    .dark .canvas-control-number.ant-input-number-focused {
+        border-color: #78716c !important;
+    }
+
+    .canvas-image-settings-popover .ant-popover-inner {
+        border-radius: 18px;
+        box-shadow: 0 18px 54px rgba(28, 25, 23, 0.16);
+        padding: 18px;
+    }
+
+    .canvas-image-settings-popover .ant-popover-inner-content {
+        max-height: calc(100vh - 96px);
+        overflow-y: auto;
+    }
+
+    .canvas-image-settings-popover .ant-segmented {
+        border-radius: 999px;
+        padding: 3px;
+    }
+
+    .canvas-image-settings-popover .ant-segmented-item {
+        border-radius: 999px;
+    }
+
+    .dark .canvas-image-settings-popover .ant-popover-inner {
+        box-shadow: 0 18px 54px rgba(0, 0, 0, 0.45);
+    }
+
+    .canvas-image-toolbar-settings-modal .ant-checkbox-wrapper {
+        color: inherit;
+    }
+
+    .canvas-image-toolbar-settings-modal .ant-checkbox-inner {
+        border-color: rgba(120, 113, 108, 0.72);
+    }
+
+    .canvas-image-toolbar-settings-modal .ant-checkbox-wrapper:hover .ant-checkbox-inner,
+    .canvas-image-toolbar-settings-modal .ant-checkbox:hover .ant-checkbox-inner {
+        border-color: #111827;
+    }
+
+    .canvas-image-toolbar-settings-modal .ant-checkbox-checked .ant-checkbox-inner {
+        background-color: #111827 !important;
+        border-color: #111827 !important;
+        box-shadow: 0 0 0 2px rgba(17, 24, 39, 0.16);
+    }
+
+    .canvas-image-toolbar-settings-modal .ant-checkbox-checked .ant-checkbox-inner::after {
+        border-color: #ffffff !important;
+        border-width: 2px;
+    }
+
+    .canvas-image-toolbar-settings-modal .ant-checkbox-disabled .ant-checkbox-inner {
+        background-color: rgba(120, 113, 108, 0.12);
+        border-color: rgba(120, 113, 108, 0.45);
+    }
+
+    .dark .canvas-image-toolbar-settings-modal .ant-checkbox-wrapper {
+        color: #e7e5e4;
+    }
+
+    .dark .canvas-image-toolbar-settings-modal .ant-checkbox-inner {
+        background-color: rgba(255, 255, 255, 0.06);
+        border-color: rgba(214, 211, 209, 0.72);
+        box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+    }
+
+    .dark .canvas-image-toolbar-settings-modal .ant-checkbox-wrapper:hover .ant-checkbox-inner,
+    .dark .canvas-image-toolbar-settings-modal .ant-checkbox:hover .ant-checkbox-inner {
+        background-color: rgba(255, 255, 255, 0.12);
+        border-color: #f8fafc;
+    }
+
+    .dark .canvas-image-toolbar-settings-modal .ant-checkbox-checked .ant-checkbox-inner {
+        background-color: #f8fafc !important;
+        border-color: #ffffff !important;
+        box-shadow: 0 0 0 2px rgba(248, 250, 252, 0.26);
+    }
+
+    .dark .canvas-image-toolbar-settings-modal .ant-checkbox-checked .ant-checkbox-inner::after {
+        border-color: #0f172a !important;
+    }
+
+    .dark .canvas-image-toolbar-settings-modal .ant-switch {
+        background: rgba(120, 113, 108, 0.72);
+        border: 1px solid rgba(231, 229, 228, 0.2);
+        min-width: 44px;
+    }
+
+    .dark .canvas-image-toolbar-settings-modal .ant-switch .ant-switch-handle::before {
+        background: #fafaf9;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.32);
+    }
+
+    .dark .canvas-image-toolbar-settings-modal .ant-switch:hover:not(.ant-switch-disabled) {
+        background: rgba(168, 162, 158, 0.82);
+    }
+
+    .dark .canvas-image-toolbar-settings-modal .ant-switch.ant-switch-checked {
+        background: #f8fafc;
+        border-color: #ffffff;
+    }
+
+    .dark .canvas-image-toolbar-settings-modal .ant-switch.ant-switch-checked:hover:not(.ant-switch-disabled) {
+        background: #ffffff;
+    }
+
+    .canvas-node-info-modal .ant-modal-header {
+        padding-right: 0;
+    }
+
+    .canvas-node-info-modal .ant-modal-title {
+        line-height: 1;
+    }
+
+    .canvas-node-info-modal .ant-modal-close {
+        top: 21px;
+    }
+
+    .ant-message {
+        box-sizing: border-box;
+        inset-inline: 0 !important;
+        max-width: 100vw;
+        padding-inline: 16px;
+        transform: none !important;
+        width: 100% !important;
+    }
+
+    .ant-message .ant-message-notice {
+        box-sizing: border-box;
+        margin-inline: auto;
+        max-width: calc(100vw - 32px);
+    }
+
+    .ant-message .ant-message-notice-content {
+        box-sizing: border-box;
+        border: 1px solid rgba(120, 113, 108, 0.18);
+        border-radius: 8px;
+        box-shadow: 0 12px 32px rgba(28, 25, 23, 0.14);
+        max-width: calc(100vw - 32px);
+        padding: 10px 14px;
+        white-space: normal;
+    }
+
+    .ant-message .ant-message-custom-content {
+        align-items: center;
+        display: inline-flex;
+        gap: 8px;
+        max-width: 100%;
+        overflow-wrap: anywhere;
+    }
+
+    .dark .ant-message .ant-message-notice-content {
+        background: rgba(12, 10, 9, 0.96);
+        border-color: rgba(255, 255, 255, 0.12);
+        box-shadow: 0 14px 36px rgba(0, 0, 0, 0.38);
+        color: #fafaf9;
+    }
+
+    .ant-picker-dropdown .ant-picker-panel-container {
+        border: 1px solid rgba(15, 23, 42, 0.08);
+        border-radius: 10px;
+        box-shadow: 0 18px 52px rgba(15, 23, 42, 0.14);
+        overflow: hidden;
+    }
+
+    .ant-picker-dropdown .ant-picker-header {
+        border-bottom-color: rgba(15, 23, 42, 0.08);
+    }
+
+    .ant-picker-dropdown .ant-picker-header-view,
+    .ant-picker-dropdown .ant-picker-content th {
+        color: #1f2937;
+        font-weight: 650;
+    }
+
+    .ant-picker-dropdown .ant-picker-cell::before,
+    .ant-picker-dropdown .ant-picker-cell-in-view.ant-picker-cell-in-range::before,
+    .ant-picker-dropdown .ant-picker-cell-in-view.ant-picker-cell-range-start::before,
+    .ant-picker-dropdown .ant-picker-cell-in-view.ant-picker-cell-range-end::before,
+    .ant-picker-dropdown .ant-picker-cell-in-view.ant-picker-cell-range-hover::before {
+        background: transparent !important;
+    }
+
+    .ant-picker-dropdown .ant-picker-cell-in-view.ant-picker-cell-in-range .ant-picker-cell-inner {
+        background: transparent !important;
+        color: #292524;
+    }
+
+    .ant-picker-dropdown .ant-picker-cell-in-view.ant-picker-cell-range-start .ant-picker-cell-inner,
+    .ant-picker-dropdown .ant-picker-cell-in-view.ant-picker-cell-range-end .ant-picker-cell-inner,
+    .ant-picker-dropdown .ant-picker-cell-in-view.ant-picker-cell-selected .ant-picker-cell-inner {
+        background: #111827 !important;
+        border-radius: 6px;
+        color: #ffffff !important;
+    }
+
+    .ant-picker-dropdown .ant-picker-cell-in-view.ant-picker-cell-today .ant-picker-cell-inner::before {
+        border-color: #111827;
+        border-radius: 6px;
+    }
+
+    html.dark .ant-picker-dropdown .ant-picker-panel-container {
+        background: #111113;
+        border-color: rgba(255, 255, 255, 0.12);
+        box-shadow: 0 20px 56px rgba(0, 0, 0, 0.5);
+    }
+
+    html.dark .ant-picker-dropdown .ant-picker-panel,
+    html.dark .ant-picker-dropdown .ant-picker-date-panel,
+    html.dark .ant-picker-dropdown .ant-picker-header {
+        background: #111113;
+        border-color: rgba(255, 255, 255, 0.1);
+    }
+
+    html.dark .ant-picker-dropdown .ant-picker-header-view,
+    html.dark .ant-picker-dropdown .ant-picker-content th,
+    html.dark .ant-picker-dropdown .ant-picker-cell-in-view {
+        color: #e7e5e4;
+    }
+
+    html.dark .ant-picker-dropdown .ant-picker-cell {
+        color: rgba(231, 229, 228, 0.34);
+    }
+
+    html.dark .ant-picker-dropdown .ant-picker-cell-in-view.ant-picker-cell-in-range .ant-picker-cell-inner {
+        background: transparent !important;
+        color: #e7e5e4;
+    }
+
+    html.dark .ant-picker-dropdown .ant-picker-cell-in-view.ant-picker-cell-range-start .ant-picker-cell-inner,
+    html.dark .ant-picker-dropdown .ant-picker-cell-in-view.ant-picker-cell-range-end .ant-picker-cell-inner,
+    html.dark .ant-picker-dropdown .ant-picker-cell-in-view.ant-picker-cell-selected .ant-picker-cell-inner {
+        background: #f8fafc !important;
+        color: #111827 !important;
+    }
+
+    html.dark .ant-picker-dropdown .ant-picker-cell-in-view.ant-picker-cell-today .ant-picker-cell-inner::before {
+        border-color: #f8fafc;
+    }
+}

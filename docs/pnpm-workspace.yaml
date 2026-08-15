@@ -1,0 +1,9 @@
+allowBuilds:
+  esbuild: true
+  sharp: true
+minimumReleaseAgeExclude:
+  - postcss@8.5.25
+overrides:
+  "nanoid@<3.3.18": 3.3.18
+  postcss: 8.5.25
+  sharp: 0.35.3

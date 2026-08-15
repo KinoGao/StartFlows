@@ -1,0 +1,18 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@import "./styles/global-foundation.css";
+@import "./styles/global-hero.css";
+@import "./styles/global-app-shell.css";
+@import "./styles/global-auth.css";
+@import "./styles/global-admin-controls.css";
+@import "./styles/global-selection-controls.css";
+@import "./styles/global-scroll-utilities.css";
+@import "./styles/global-canvas-controls.css";
+@import "./styles/global-responsive-controls.css";
+@import "./styles/global-canvas-overrides.css";
+@import "./styles/global-profile-overrides.css";
+@import "./styles/global-canvas-responsive.css";
+@import "./styles/global-admin-responsive.css";
+@import "./styles/global-admin-theme.css";

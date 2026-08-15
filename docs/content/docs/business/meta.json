@@ -1,0 +1,11 @@
+{
+  "title": "商务合作",
+  "root": true,
+  "defaultOpen": true,
+  "pages": [
+    "commercial-launch",
+    "license",
+    "cla",
+    "business"
+  ]
+}

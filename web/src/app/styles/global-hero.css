@@ -1,0 +1,218 @@
+@layer utilities {
+    .ai-title-aurora {
+        background: linear-gradient(90deg, #111827 0%, #111827 36%, #6b7280 54%, #111827 72%, #111827 100%);
+        background-size: 220% 100%;
+        -webkit-background-clip: text;
+        background-clip: text;
+        color: transparent;
+        animation: ai-title-aurora 7s ease-in-out;
+        animation-iteration-count: 2147483647;
+    }
+
+    .dark .ai-title-aurora {
+        background: linear-gradient(90deg, #fafaf9 0%, #fafaf9 36%, #a8a29e 54%, #fafaf9 72%, #fafaf9 100%);
+        background-size: 220% 100%;
+        -webkit-background-clip: text;
+        background-clip: text;
+    }
+
+    @keyframes ai-title-aurora {
+        0%,
+        100% {
+            background-position: 0% 50%;
+            filter: drop-shadow(0 0 0 rgba(0, 0, 0, 0));
+        }
+        50% {
+            background-position: 100% 50%;
+            filter: drop-shadow(0 12px 28px rgba(28, 25, 23, 0.08));
+        }
+    }
+
+    .hero-title-wrap {
+        align-items: center;
+        display: flex;
+        flex-direction: column;
+        position: relative;
+    }
+
+    .hero-title-wrap.items-start {
+        align-items: flex-start;
+    }
+
+    .hero-version-badge {
+        margin-top: -4px;
+    }
+
+    @media (min-width: 768px) {
+        .hero-version-badge {
+            left: calc(50% + clamp(210px, 28vw, 360px));
+            margin-top: 0;
+            position: absolute;
+            top: clamp(16px, 2.6vw, 42px);
+            transform: translateX(-8%);
+            z-index: 2;
+        }
+    }
+
+    .hero-title-stage {
+        margin-top: clamp(24px, 3.6vw, 42px);
+        padding: clamp(16px, 2.6vw, 30px) clamp(12px, 2.4vw, 28px) 0;
+        position: relative;
+    }
+
+    .hero-cape {
+        height: clamp(92px, 10vw, 148px);
+        margin-top: clamp(-70px, -5.2vw, -38px);
+        max-width: min(880px, 94vw);
+        overflow: visible;
+        pointer-events: none;
+        transform-origin: 52% 40%;
+        width: min(100%, 880px);
+        animation: hero-cape-float 9s ease-in-out;
+        animation-iteration-count: 2147483647;
+    }
+
+    .hero-cape-reveal {
+        animation: hero-cape-reveal 8s ease-in-out;
+        animation-iteration-count: 2147483647;
+        transform-origin: 0 50%;
+    }
+
+    .hero-cape-fill {
+        opacity: 0.88;
+        transform-origin: 52% 48%;
+        animation: hero-cape-breathe 8.4s ease-in-out;
+        animation-iteration-count: 2147483647;
+    }
+
+    .hero-cape-edge {
+        fill: none;
+        stroke: url(#cape-edge);
+        stroke-linecap: round;
+        stroke-linejoin: round;
+    }
+
+    .hero-cape-edge-main {
+        opacity: 0.94;
+        stroke-dasharray: 720;
+        stroke-dashoffset: 0;
+        stroke-width: 4.5;
+        animation: hero-cape-shimmer 8.8s ease-in-out;
+        animation-iteration-count: 2147483647;
+    }
+
+    .hero-cape-edge-soft {
+        opacity: 0.42;
+        stroke-width: 1.5;
+    }
+
+    .hero-cape-tail {
+        fill: none;
+        opacity: 0.42;
+        stroke: rgba(125, 211, 252, 0.55);
+        stroke-linecap: round;
+        stroke-width: 1.25;
+    }
+
+    .dark .hero-cape {
+        filter: drop-shadow(0 0 12px rgba(125, 211, 252, 0.38));
+    }
+
+    @keyframes hero-cape-float {
+        0%,
+        100% {
+            transform: translate3d(0, 0, 0) rotate(-0.6deg);
+        }
+        50% {
+            transform: translate3d(1.4%, -5px, 0) rotate(0.9deg);
+        }
+    }
+
+    @keyframes hero-cape-reveal {
+        0%,
+        100% {
+            transform: scaleX(0.08);
+        }
+        38%,
+        76% {
+            transform: scaleX(1);
+        }
+    }
+
+    @keyframes hero-cape-breathe {
+        0%,
+        100% {
+            opacity: 0.62;
+            transform: scaleX(0.985) skewX(-1deg);
+        }
+        48% {
+            opacity: 0.98;
+            transform: scaleX(1.025) skewX(1.4deg);
+        }
+    }
+
+    @keyframes hero-cape-shimmer {
+        0%,
+        100% {
+            stroke-dashoffset: 0;
+        }
+        50% {
+            stroke-dashoffset: -92;
+        }
+    }
+
+    .auth-page-bg,
+    .animated-dot-bg {
+        background:
+            radial-gradient(ellipse 78% 42% at 50% 48%, rgba(255, 255, 255, 0.96), transparent 66%), radial-gradient(ellipse 92% 46% at 50% 98%, rgba(14, 165, 233, 0.08), transparent 64%),
+            radial-gradient(circle at 16% 22%, rgba(14, 165, 233, 0.04), transparent 28%), radial-gradient(circle at 86% 72%, rgba(96, 165, 250, 0.05), transparent 30%), linear-gradient(180deg, #ffffff 0%, #ffffff 58%, #f8fbff 100%);
+        background-color: #ffffff;
+        isolation: isolate;
+        overflow-x: clip;
+        position: relative;
+    }
+
+    .dark .auth-page-bg,
+    .dark .animated-dot-bg {
+        background:
+            radial-gradient(ellipse 46% 34% at 50% 42%, rgba(148, 163, 184, 0.2), transparent 68%), radial-gradient(ellipse 110% 54% at 50% 100%, rgba(8, 145, 178, 0.24), transparent 64%),
+            radial-gradient(circle at 18% 20%, rgba(34, 211, 238, 0.12), transparent 30%), radial-gradient(circle at 84% 70%, rgba(59, 130, 246, 0.14), transparent 34%), linear-gradient(180deg, #020617 0%, #020611 44%, #031827 100%);
+    }
+
+    .auth-page-bg {
+        background: linear-gradient(128deg, #fdfcff 0%, #f7f4ff 34%, #f3f7ff 68%, #fff9fc 100%);
+    }
+
+    .dark .auth-page-bg {
+        background: linear-gradient(128deg, #0f1014 0%, #171621 38%, #121922 70%, #171318 100%);
+    }
+
+    .auth-page-bg::before,
+    .animated-dot-bg::before {
+        background-image: linear-gradient(rgba(125, 211, 252, 0.06) 1px, transparent 1px), linear-gradient(90deg, rgba(125, 211, 252, 0.06) 1px, transparent 1px), radial-gradient(circle, rgba(125, 211, 252, 0.5) 0 1.15px, transparent 1.8px);
+        background-position:
+            0 0,
+            0 0,
+            10px 12px;
+        background-size:
+            72px 72px,
+            72px 72px,
+            24px 24px;
+        opacity: 0.42;
+    }
+
+    .auth-page-bg::before {
+        background-image: none;
+        opacity: 0;
+    }
+
+    .dark .auth-page-bg::before {
+        background-image: none;
+    }
+
+    .auth-page-bg > *,
+    .animated-dot-bg > * {
+        position: relative;
+        z-index: 1;
+    }
+}
