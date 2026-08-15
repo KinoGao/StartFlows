@@ -139,6 +139,8 @@ export async function resolveAudioModelCapabilityForRequest(model: string) {
 
 async function fetchCapabilities<T>(endpoint: string, label: string) {
     const response = await fetch(apiUrl(endpoint));
+    // VOZEB 没有能力查询接口：404 时返回空列表，调用方走默认参数
+    if (response.status === 404) return [] as T[];
     if (!response.ok) throw new Error(`读取${label}模型能力失败：${response.status}`);
     const body = (await response.json()) as ApiResponse<T[]>;
     if (body.code !== 0) throw new Error(body.msg || `读取${label}模型能力失败`);

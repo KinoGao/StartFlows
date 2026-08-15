@@ -22,39 +22,64 @@ function aiHeaders(config: AiConfig) {
     };
 }
 
-export async function requestAudioGeneration(config: AiConfig, prompt: string, options?: RequestOptions): Promise<Blob> {
-    const selectedModel = config.model || config.audioModel;
-    const requestConfig = resolveModelRequestConfig(config, selectedModel);
-    const model = requestConfig.model.trim();
-    assertAudioConfig(requestConfig, model);
-    assertAudioCapability(await resolveAudioModelCapabilityForRequest(modelOptionName(selectedModel)), requestConfig);
-    const format = normalizeAudioFormatValue(config.audioFormat);
-    const instructions = config.audioInstructions.trim();
+const AUDIO_TASK_POLL_INTERVAL_MS = 2000;
+const AUDIO_TASK_TIMEOUT_MS = 10 * 60_000;
 
-    const url = aiApiUrl(requestConfig, "/audio/speech");
-    try {
-        const response = await axios.post<Blob>(
-            url,
-            {
+type AudioTaskRecord = {
+    id: string;
+    status: "pending" | "running" | "success" | "error" | "cancelled";
+    result?: { url?: string; mimeType?: string };
+    error?: string | { message?: string };
+    needsReview?: boolean;
+    reviewReason?: string;
+};
+
+/** VOZEB 任务化音频生成：创建任务 + 轮询，返回可播放 URL（服务端执行，页面关闭也继续）。 */
+export async function requestAudioGeneration(config: AiConfig, prompt: string, options?: RequestOptions): Promise<{ url: string; mimeType: string }> {
+    const model = modelOptionName(config.model || config.audioModel);
+    const response = await fetch("/api/audio-tasks", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+            config: {
                 model,
-                input: prompt,
                 voice: normalizeAudioVoiceValue(config.audioVoice),
-                response_format: format,
+                format: normalizeAudioFormatValue(config.audioFormat),
                 speed: Number(normalizeAudioSpeedValue(config.audioSpeed)),
-                ...(instructions ? { instructions } : {}),
+                ...(config.audioInstructions.trim() ? { instructions: config.audioInstructions.trim() } : {}),
             },
-            { headers: { ...aiHeaders(requestConfig), ...durableGenerationHeaders(url, options?.jobId) }, responseType: "blob", signal: options?.signal, timeout: AUDIO_GENERATION_TIMEOUT_MS },
-        );
-        await assertAudioBlob(response.data);
-        return response.data.type.startsWith("audio/") ? response.data : new Blob([response.data], { type: audioMimeType(format) });
-    } catch (error) {
-        throw new Error(readAxiosError(error, "音频生成失败"));
+            prompt,
+            source: "canvas",
+        }),
+        signal: options?.signal,
+    });
+    const body = (await response.json()) as { task?: AudioTaskRecord; error?: string };
+    if (!response.ok || !body.task?.id) throw new Error(body.error || `音频任务创建失败：${response.status}`);
+    const startedAt = Date.now();
+    for (;;) {
+        if (options?.signal?.aborted) throw new DOMException("Aborted", "AbortError");
+        const poll = await (await fetch(`/api/audio-tasks/${encodeURIComponent(body.task.id)}`, { signal: options?.signal })).json() as { task?: AudioTaskRecord; error?: string };
+        const record = poll.task;
+        if (!record) throw new Error(poll.error || "音频任务查询失败");
+        if (record.status === "success") {
+            const url = record.result?.url || "";
+            if (!url) throw new Error("音频接口没有返回内容");
+            return { url: new URL(url, window.location.origin).toString(), mimeType: record.result?.mimeType || "audio/mpeg" };
+        }
+        if (record.status === "error") throw new Error(typeof record.error === "string" ? record.error : record.error?.message || "音频生成失败");
+        if (record.status === "cancelled") throw new Error("音频任务已取消");
+        if (record.needsReview) throw new Error(record.reviewReason || "音频结果需要人工复核");
+        if (Date.now() - startedAt > AUDIO_TASK_TIMEOUT_MS) throw new Error("音频生成超时");
+        await new Promise((resolve) => setTimeout(resolve, AUDIO_TASK_POLL_INTERVAL_MS));
     }
 }
 
-export async function storeGeneratedAudio(blob: Blob, format = "mp3"): Promise<UploadedFile> {
-    const audio = blob.type.startsWith("audio/") ? blob : new Blob([blob], { type: audioMimeType(format) });
-    return uploadMediaFile(audio, "audio");
+export async function storeGeneratedAudio(result: Blob | { url: string; mimeType?: string }, format = "mp3"): Promise<UploadedFile> {
+    if (result instanceof Blob) {
+        const audio = result.type.startsWith("audio/") ? result : new Blob([result], { type: audioMimeType(format) });
+        return uploadMediaFile(audio, "audio");
+    }
+    return uploadMediaFile(result.url, "audio");
 }
 
 function assertAudioConfig(config: AiConfig, model: string) {

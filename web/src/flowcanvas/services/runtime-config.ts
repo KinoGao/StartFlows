@@ -26,12 +26,13 @@ function runtimeCatalog(runtime: RuntimeConfig) {
             channel: {
                 id: channelId,
                 name: `${provider.name} · ${model.displayName}`,
-                baseUrl: apiUrl(`/api/model-runtime/models/${encodeURIComponent(model.id)}`),
+                baseUrl: provider.baseUrl.startsWith("/api/") ? apiUrl(provider.baseUrl) : provider.baseUrl || apiUrl(`/api/model-runtime/models/${encodeURIComponent(model.id)}`),
                 apiKey: "backend-managed",
                 apiFormat: provider.apiFormat,
                 models: [model.id],
                 modelLabels: { [model.id]: model.displayName },
                 modelPatterns: { [model.id]: Array.from(new Set([model.id, ...model.modelPatterns].map((value) => value.trim()).filter(Boolean))) },
+                modelRequestNames: { [model.id]: model.upstreamModel || model.id },
                 useProxy: false,
             },
         };

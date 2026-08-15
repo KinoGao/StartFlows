@@ -17,6 +17,8 @@ export type ModelChannel = {
     models: string[];
     modelLabels?: Record<string, string>;
     modelPatterns?: Record<string, string[]>;
+    /** 逻辑模型 id → 上游真实模型名（VOZEB 透传代理不改写 model 字段，请求时必须用上游名） */
+    modelRequestNames?: Record<string, string>;
     useProxy?: boolean;
 };
 
@@ -335,9 +337,10 @@ export function resolveModelChannel(config: AiConfig, value: string) {
 
 export function resolveModelRequestConfig(config: AiConfig, value: string) {
     const channel = resolveModelChannel(config, value);
+    const optionName = modelOptionName(value || config.model);
     return {
         ...config,
-        model: modelOptionName(value || config.model),
+        model: channel.modelRequestNames?.[optionName] || optionName,
         baseUrl: channel.baseUrl,
         apiKey: channel.apiKey,
         apiFormat: channel.apiFormat,
@@ -392,7 +395,7 @@ function uniqueModelOptions(models: string[]) {
 
 export function buildApiUrl(baseUrl: string, path: string, useProxy = false) {
     let normalizedBaseUrl = baseUrl.trim().replace(/\/+$/, "");
-    if (normalizedBaseUrl.includes("/api/model-runtime/providers/") || normalizedBaseUrl.includes("/api/model-runtime/models/")) {
+    if (normalizedBaseUrl.includes("/api/model-runtime/providers/") || normalizedBaseUrl.includes("/api/model-runtime/models/") || normalizedBaseUrl.includes("/api/ai/system/")) {
         const finalUrl = normalizedBaseUrl + path;
         return useProxy ? apiUrl("/api/ai-proxy?target=" + encodeURIComponent(finalUrl)) : finalUrl;
     }

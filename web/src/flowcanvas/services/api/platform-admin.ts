@@ -102,7 +102,10 @@ export type PlatformConfigDocument = {
     defaultModels: PlatformDefaultModels;
 };
 
-export type RuntimeModel = Omit<PlatformModel, "providerId" | "requestModel" | "enabled" | "published" | "verificationStatus" | "verifiedAt" | "verificationMessage">;
+export type RuntimeModel = Omit<PlatformModel, "providerId" | "requestModel" | "enabled" | "published" | "verificationStatus" | "verifiedAt" | "verificationMessage"> & {
+    /** 上游真实模型名（VOZEB 逻辑模型 binding.upstreamModel） */
+    upstreamModel?: string;
+};
 export type RuntimeProvider = {
     id: string;
     name: string;
@@ -216,6 +219,7 @@ export async function fetchRuntimeConfig() {
                     displayName: logical.name || logical.id,
                     category: logical.capability,
                     requestAdapter: channel.apiFormat === "gemini" ? "gemini" : "openai",
+                    upstreamModel: binding.upstreamModel || logical.id,
                     modelPatterns: [],
                     textCapabilities: null,
                     imageCapabilities: null,

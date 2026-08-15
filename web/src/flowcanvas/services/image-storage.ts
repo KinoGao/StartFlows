@@ -23,7 +23,30 @@ const imageBlobs = createBlobStorage(store);
 
 const dataUrlUploadCache = new Map<string, UploadedImage>();
 
+/** 同源站内资产 URL（/api/reference-assets/<key>）→ 直接映射 storageKey，不重复上传。 */
+function matchServerAssetUrl(input: string): { key: string; storageKey: string } | null {
+    if (typeof window === "undefined" || !input) return null;
+    try {
+        const parsed = new URL(input, window.location.origin);
+        if (parsed.origin !== window.location.origin) return null;
+        const match = parsed.pathname.match(/^\/api\/reference-assets\/(.+)$/);
+        if (!match) return null;
+        return { key: match[1], storageKey: `backend:${match[1]}` };
+    } catch {
+        return null;
+    }
+}
+
 export async function uploadImage(input: string | Blob): Promise<UploadedImage> {
+    // VOZEB：生成结果已是站内资产 URL 时直接登记引用，不再重复上传
+    if (typeof input === "string" && !input.startsWith("data:")) {
+        const serverAsset = matchServerAssetUrl(input);
+        if (serverAsset) {
+            const url = new URL(input, window.location.origin).toString();
+            const meta = await readImageMeta(url);
+            return { url, storageKey: serverAsset.storageKey, width: meta.width, height: meta.height, bytes: 0, mimeType: meta.mimeType || "image/png" };
+        }
+    }
     const cacheKey = typeof input === "string" && input.startsWith("data:") ? input : null;
     if (cacheKey) {
         const cached = dataUrlUploadCache.get(cacheKey);

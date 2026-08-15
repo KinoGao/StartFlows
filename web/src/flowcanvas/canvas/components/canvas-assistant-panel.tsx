@@ -19,11 +19,9 @@ import { imageReferenceLabel } from "@/flowcanvas/lib/image-reference-prompt";
 import { CanvasPromptLibrary } from "./canvas-prompt-library";
 import { AgentChatComposer, AgentChatMessage, AgentWorkingMessage, type CanvasAgentChatMessage, type CanvasAgentMode } from "./canvas-agent-chat-ui";
 import { AgentRunCard } from "../agent-run/agent-run-card";
-import { buildAgentRunPrompt, compileAgentRunOps } from "../agent-run/agent-run-ops";
-import { requestAgentRunPlan } from "../agent-run/agent-run-planner";
-import { AgentRunSync, mapBackendAgentRun } from "../agent-run/agent-run-sync";
-import { createAgentRun, fetchAgentRuns } from "@/flowcanvas/services/api/agent-runs";
+import { buildVozebCanvasSnapshot, mapVozebAgentRun, mapVozebCanvasOps, watchVozebAgentRun } from "../agent-run/agent-run-vozeb";
 import type { AgentRun } from "../agent-run/agent-run-types";
+import { controlCreativeAgentRun, createCreativeAgentRun, listCreativeAgentRuns, retryCreativeAgentTask } from "@/services/api/creative";
 import { CanvasLocalAgentPanel } from "./canvas-local-agent-panel";
 import { NODE_DEFAULT_SIZE } from "../constants";
 import { CanvasNodeType, type CanvasAssistantMessage, type CanvasAssistantReference, type CanvasAssistantSession, type CanvasNodeData } from "../types";
@@ -342,7 +340,8 @@ export function CanvasAssistantPanel({
     const [chatMode, setChatMode] = useState<"talk" | "run">("talk");
     const [agentRuns, setAgentRuns] = useState<AgentRun[]>([]);
     const agentRunsRef = useRef<AgentRun[]>([]);
-    const agentRunSyncRef = useRef<AgentRunSync | null>(null);
+    const agentRunWatchersRef = useRef(new Map<string, () => void>());
+    const agentRunSessionMapRef = useRef(new Map<string, string>());
     const agentRunsLoadedRef = useRef(false);
     const token = useUserStore((state) => state.token);
     const [prompt, setPrompt] = useState("");
@@ -476,93 +475,49 @@ export function CanvasAssistantPanel({
         });
     };
 
-    const getAgentRunSync = () => {
-        if (!agentRunSyncRef.current) {
-            agentRunSyncRef.current = new AgentRunSync({
-                token: () => useUserStore.getState().token,
-                applyOps: (ops) => onApplyOps(ops),
-                onRunChange: upsertAgentRun,
-            });
-        }
-        return agentRunSyncRef.current;
+    const watchAgentRun = (runId: string) => {
+        if (agentRunWatchersRef.current.has(runId)) return;
+        const close = watchVozebAgentRun(runId, {
+            onRun: (partial) => {
+                const current = agentRunsRef.current.find((run) => run.id === runId);
+                upsertAgentRun(mapVozebAgentRun({ ...current, ...partial, id: runId }, current));
+                if (["completed", "failed", "cancelled"].includes(String(partial.status))) agentRunWatchersRef.current.delete(runId);
+            },
+            onOps: (ops) => void onApplyOps(mapVozebCanvasOps(ops)),
+            onReply: (text) => {
+                const sessionId = agentRunSessionMapRef.current.get(runId);
+                if (sessionId && text.trim()) appendMessage(sessionId, { id: nanoid(), role: "assistant", text });
+            },
+            onDone: () => agentRunWatchersRef.current.delete(runId),
+        });
+        agentRunWatchersRef.current.set(runId, close);
     };
 
-    useEffect(() => () => agentRunSyncRef.current?.stopAll(), []);
+    useEffect(
+        () => () => {
+            agentRunWatchersRef.current.forEach((close) => close());
+            agentRunWatchersRef.current.clear();
+        },
+        [],
+    );
 
-    // 加载本画布的 Agent Run（执行在后端，重开画布后进度可恢复并继续）
+    // 加载本画布的 Agent Run（VOZEB 服务端执行，重开画布后恢复进度并继续监听）
     useEffect(() => {
         if (!token || agentRunsLoadedRef.current) return;
         agentRunsLoadedRef.current = true;
-        void fetchAgentRuns(token, snapshot.projectId)
-            .then((items) => {
-                if (!items.length) return;
-                const mine = items.map(mapBackendAgentRun);
+        void listCreativeAgentRuns("canvas", { projectId: snapshot.projectId, limit: 20 })
+            .then((runs) => {
+                if (!runs.length) return;
+                const mine = runs.map((run) => mapVozebAgentRun(run));
                 agentRunsRef.current = mine;
                 setAgentRuns(mine);
-                const sync = getAgentRunSync();
-                items.forEach((run) => {
-                    if (!["completed", "failed", "cancelled"].includes(run.status)) sync.startPolling(run.id);
+                mine.forEach((run) => {
+                    if (!["completed", "failed", "cancelled"].includes(run.status)) watchAgentRun(run.id);
                 });
             })
             .catch(() => {});
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [token, snapshot.projectId]);
-
-    /** 注册中心模型 id：从解析后的渠道 baseUrl（/api/model-runtime/models/{id}）提取。 */
-    const runtimeModelId = (value: string) => {
-        const channel = resolveModelChannel(effectiveConfig, value);
-        const match = channel.baseUrl.match(/\/models\/([^/]+)/);
-        return match ? decodeURIComponent(match[1]) : modelOptionName(value);
-    };
-
-    const startAgentRun = async (run: AgentRun) => {
-        if (!run.plan) return;
-        const { ops, tasks } = compileAgentRunOps(run, run.plan, snapshotRef.current, {
-            textModel: effectiveConfig.textModel || effectiveConfig.model,
-            imageModel: effectiveConfig.imageModel || effectiveConfig.model,
-            videoModel: effectiveConfig.videoModel || effectiveConfig.model,
-            audioModel: effectiveConfig.audioModel || effectiveConfig.model,
-        });
-        await onApplyOps(ops);
-        const optionValueFor = (type: string) =>
-            type === "image" ? effectiveConfig.imageModel || effectiveConfig.model : type === "video" ? effectiveConfig.videoModel || effectiveConfig.model : type === "audio" ? effectiveConfig.audioModel || effectiveConfig.model : effectiveConfig.textModel || effectiveConfig.model;
-        try {
-            const created = await createAgentRun(token, {
-                id: run.id,
-                projectId: run.projectId,
-                title: run.title,
-                requirement: run.requirement,
-                plan: run.plan,
-                tasks: tasks.map((task) => {
-                    const deliverable = run.plan!.deliverables.find((item) => item.id === task.id);
-                    const optionValue = optionValueFor(task.type);
-                    return {
-                        id: task.id,
-                        nodeId: task.nodeId,
-                        type: task.type,
-                        title: task.title,
-                        prompt: deliverable ? buildAgentRunPrompt(deliverable, run.plan!.foundation) : task.title,
-                        modelId: runtimeModelId(optionValue),
-                        dependencies: deliverable?.dependencies ?? [],
-                        params:
-                            task.type === "image"
-                                ? { count: deliverable?.count || 1, size: effectiveConfig.size, quality: effectiveConfig.quality }
-                                : task.type === "video"
-                                  ? { seconds: effectiveConfig.videoSeconds, size: effectiveConfig.size, vquality: effectiveConfig.vquality }
-                                  : task.type === "audio"
-                                    ? { voice: effectiveConfig.audioVoice, format: effectiveConfig.audioFormat, speed: effectiveConfig.audioSpeed }
-                                    : {},
-                    };
-                }),
-            });
-            upsertAgentRun(mapBackendAgentRun(created));
-            addOnlineLog("Agent Run 已开始（服务端执行）", { runId: run.id, tasks: tasks.length });
-            getAgentRunSync().startPolling(run.id);
-        } catch (error) {
-            upsertAgentRun({ ...run, status: "failed", updatedAt: Date.now() });
-            addOnlineLog("Agent Run 创建失败", error instanceof Error ? error.message : error);
-        }
-    };
 
     // 任务规划模式：一次规划出创作计划（简报+视觉方向+产物清单），确认后编译为画布节点并按依赖执行
     const startAgentRunFlow = async (text: string) => {
@@ -579,18 +534,22 @@ export function CanvasAssistantPanel({
         appendMessage(session.id, { id: nanoid(), role: "user", text });
         setPrompt("");
         setIsRunning(true);
-        const run: AgentRun = { id: nanoid(), projectId: snapshot.projectId, title: text.slice(0, 24), requirement: text, status: "planning", tasks: [], createdAt: Date.now(), updatedAt: Date.now() };
         try {
-            const plan = await requestAgentRunPlan(effectiveConfig, text, snapshotRef.current);
-            if (plan.intent === "conversation" || !plan.deliverables.length) {
-                appendMessage(session.id, { id: nanoid(), role: "assistant", text: plan.reply });
-                return;
-            }
-            const planned: AgentRun = { ...run, plan, status: "planned", title: plan.foundation?.brief.objective?.slice(0, 24) || run.title, updatedAt: Date.now() };
-            upsertAgentRun(planned);
-            addOnlineLog("创作计划", plan);
-            appendMessage(session.id, { id: nanoid(), role: "assistant", text: plan.reply });
-            appendMessage(session.id, { id: nanoid(), role: "tool", title: "创作计划", text: "", detail: { kind: "agentRun", runId: planned.id } });
+            const { run } = await createCreativeAgentRun({
+                clientRequestId: nanoid(),
+                surface: "canvas",
+                projectId: snapshot.projectId,
+                prompt: text,
+                snapshot: buildVozebCanvasSnapshot(snapshotRef.current),
+                assetIds: [],
+                skillIds: [],
+                modelIds: [],
+            });
+            agentRunSessionMapRef.current.set(run.id, session.id);
+            upsertAgentRun(mapVozebAgentRun(run));
+            addOnlineLog("Agent Run 已创建（VOZEB 服务端执行）", { runId: run.id });
+            appendMessage(session.id, { id: nanoid(), role: "tool", title: "创作任务", text: "", detail: { kind: "agentRun", runId: run.id } });
+            watchAgentRun(run.id);
         } catch (error) {
             appendMessage(session.id, { id: nanoid(), role: "error", title: "规划失败", text: error instanceof Error ? error.message : "创作计划生成失败" });
         } finally {
@@ -870,11 +829,11 @@ export function CanvasAssistantPanel({
                                         <AgentRunCard
                                             run={agentRuns.find((run) => run.id === objectDetail(message.detail).runId)!}
                                             theme={theme}
-                                            onStart={(run) => void startAgentRun(run)}
-                                            onPause={(run) => void getAgentRunSync().action(run.id, "pause")}
-                                            onResume={(run) => void getAgentRunSync().action(run.id, "resume")}
-                                            onCancel={(run) => void getAgentRunSync().action(run.id, "cancel")}
-                                            onRetryTask={(run, taskId) => void getAgentRunSync().retryTask(run.id, taskId)}
+                                            onStart={() => {}}
+                                            onPause={(run) => void controlCreativeAgentRun(run.id, "pause")}
+                                            onResume={(run) => void controlCreativeAgentRun(run.id, "resume").then(() => watchAgentRun(run.id))}
+                                            onCancel={(run) => void controlCreativeAgentRun(run.id, "cancel")}
+                                            onRetryTask={(run, taskId) => void retryCreativeAgentTask(run.id, taskId).then(() => watchAgentRun(run.id))}
                                         />
                                     ) : (
                                         <AgentChatMessage item={assistantMessageToChatMessage(message)} theme={theme} user={user} onRejectTool={rejectOnlineTool} onApproveTool={approveOnlineTool} />

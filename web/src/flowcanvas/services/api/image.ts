@@ -1,4 +1,5 @@
 import axios from "axios";
+import { apiUrl } from "@/flowcanvas/constant/env";
 
 import { buildApiUrl, modelOptionName, resolveModelRequestConfig, type AiConfig, type ImageResponseFormatPolicy, type ModelChannel } from "@/flowcanvas/stores/use-config-store";
 import { rewriteThroughProxy } from "@/flowcanvas/lib/ai-proxy-url";
@@ -900,113 +901,79 @@ function parseGeminiImagePayload(payload: GeminiPayload, useProxy?: boolean) {
     return images;
 }
 
-export async function requestGeneration(config: AiConfig, prompt: string, options?: RequestOptions) {
-    const selectedModel = config.model || config.imageModel;
-    const requestConfig = resolveModelRequestConfig(config, selectedModel);
-    const n = Math.max(1, Math.min(15, Math.floor(Math.abs(Number(config.count)) || 1)));
-    const capability = await resolveImageModelCapabilityForRequest(modelOptionName(selectedModel));
-    validateImageCapability(capability, "text-to-image", 0, n);
-    if (requestConfig.apiFormat === "gemini") {
-        try {
-            return await requestGeminiImages(requestConfig, prompt, [], n, options);
-        } catch (error) {
-            throw new Error(readAxiosError(error, "请求失败"));
-        }
-    }
-    const quality = requestQuality(config.quality, capability);
-    const resolution = normalizeResolution(config.resolution || config.quality);
-    const seedream = isSeedreamImageModel(requestConfig.model);
-    const junliImage = isJunliImageModel(selectedModel) || isJunliImageModel(requestConfig.model);
-    const seedreamError = seedream ? seedreamGenerationError(requestConfig.model) : "";
-    if (seedreamError) throw new Error(seedreamError);
-    const requestSize = seedream ? resolveSeedreamSize(requestConfig.model, resolution, config.size) : resolveImageRequestSize(selectedModel, resolution, config.size);
-    if (isAgnesImageModel(requestConfig.model)) {
-        return requestAgnesImages(requestConfig, withSystemPrompt(requestConfig, prompt), [], n, requestSize, options);
-    }
-    const responseFormat = requestedImageResponseFormat(config, requestConfig.model);
-    try {
-        const url = aiApiUrl(requestConfig, "/images/generations");
-        const response = await axios.post<ImageApiResponse>(
-            url,
-            {
-                model: requestConfig.model,
-                prompt: withSystemPrompt(requestConfig, prompt),
-                ...(!junliImage ? imageOutputCountPayload(capability, n) : {}),
-                ...(capability ? { _flowcanvas_mode: "text-to-image" } : {}),
-                ...(!junliImage && !seedream && quality ? { quality } : {}),
-                ...(requestSize ? { size: requestSize } : {}),
-                ...(responseFormat ? { response_format: responseFormat } : {}),
-                ...(responseFormat === "b64_json" && seedreamSupportsOutputFormat(requestConfig.model) ? { output_format: IMAGE_OUTPUT_FORMAT } : {}),
-            },
-            {
-                headers: { ...aiHeaders(requestConfig, "application/json"), ...durableGenerationHeaders(url, options?.jobId) },
-                signal: options?.signal,
-                timeout: IMAGE_GENERATION_TIMEOUT_MS,
-            },
-        );
-        const images = parseImagePayload(response.data, requestConfig.useProxy);
-        return images;
-    } catch (error) {
-        throw new Error(readAxiosError(error, "请求失败"));
+type ImageTaskResult = { dataUrl?: string; remoteUrl?: string; serverUrl?: string; width?: number; height?: number; bytes?: number; mimeType?: string };
+type ImageTask = {
+    id: string;
+    status: "pending" | "running" | "success" | "error" | "cancelled";
+    result?: ImageTaskResult & { results?: ImageTaskResult[] };
+    error?: string | { message?: string };
+    needsReview?: boolean;
+    reviewReason?: string;
+};
+
+const IMAGE_TASK_POLL_INTERVAL_MS = 1800;
+const IMAGE_TASK_TIMEOUT_MS = 30 * 60_000;
+
+function imageTaskResultUrl(result: ImageTaskResult) {
+    return result.serverUrl || result.dataUrl || result.remoteUrl || "";
+}
+
+async function pollImageTask(taskId: string, options?: RequestOptions): Promise<ImageTask> {
+    const startedAt = Date.now();
+    for (;;) {
+        if (options?.signal?.aborted) throw new DOMException("Aborted", "AbortError");
+        const response = await fetch(apiUrl(`/api/image-tasks/${encodeURIComponent(taskId)}`), { signal: options?.signal });
+        const body = (await response.json()) as { task?: ImageTask; error?: string };
+        const task = body.task;
+        if (!task) throw new Error(body.error || `图片任务查询失败：${response.status}`);
+        if (task.status === "success") return task;
+        if (task.status === "error") throw new Error(typeof task.error === "string" ? task.error : task.error?.message || "图片生成失败");
+        if (task.status === "cancelled") throw new Error("图片任务已取消");
+        if (task.needsReview) throw new Error(task.reviewReason || "图片结果需要人工复核");
+        if (Date.now() - startedAt > IMAGE_TASK_TIMEOUT_MS) throw new Error("图片生成超时");
+        await new Promise((resolve) => setTimeout(resolve, IMAGE_TASK_POLL_INTERVAL_MS));
     }
 }
 
-export async function requestEdit(config: AiConfig, prompt: string, references: ReferenceImage[], mask?: ReferenceImage, options?: RequestOptions) {
+/** VOZEB 任务化图片生成：创建任务 + 轮询，服务端执行（页面关闭也继续）。数量由后台生成默认值控制。 */
+async function requestImageTask(config: AiConfig, kind: "generation" | "edit", prompt: string, references: ReferenceImage[], mask: ReferenceImage | undefined, options?: RequestOptions) {
     const selectedModel = config.model || config.imageModel;
-    const requestConfig = resolveModelRequestConfig(config, selectedModel);
-    const n = Math.max(1, Math.min(15, Math.floor(Math.abs(Number(config.count)) || 1)));
-    const requestPrompt = buildImageReferencePromptText(prompt, references);
-    const capability = await resolveImageModelCapabilityForRequest(modelOptionName(selectedModel));
-    const generationMode = resolveImageEditMode(capability, Boolean(mask));
-    validateImageCapability(capability, generationMode, references.length, n);
-    const seedream = isSeedreamImageModel(requestConfig.model);
-    const junliImage = isJunliImageModel(selectedModel) || isJunliImageModel(requestConfig.model);
-    if (mask && junliImage) throw new Error("Junli 图片编辑接口不支持蒙版参数，请改用普通图片编辑");
-    if (seedream) {
-        if (mask) throw new Error("当前 Seedream/SeedEdit 接入暂不支持蒙版编辑");
-        const seedreamError = seedreamEditError(requestConfig.model, references.length);
-        if (seedreamError) throw new Error(seedreamError);
-        return requestSeedreamImages(requestConfig, requestPrompt, references, n, config.resolution || config.quality, config.size, generationMode, capability, options);
-    }
-    if (requestConfig.apiFormat === "gemini") {
-        if (mask) throw new Error("Gemini 调用格式暂不支持蒙版编辑");
-        try {
-            return await requestGeminiImages(requestConfig, requestPrompt, references, n, options);
-        } catch (error) {
-            throw new Error(readAxiosError(error, "请求失败"));
-        }
-    }
-    const quality = requestQuality(config.quality, capability);
-    const resolution = normalizeResolution(config.resolution || config.quality);
-    const requestSize = resolveImageRequestSize(selectedModel, resolution, config.size);
-    if (isAgnesImageModel(requestConfig.model)) {
-        if (mask) throw new Error("Agnes 图像接口暂不支持蒙版编辑");
-        return requestAgnesImages(requestConfig, withSystemPrompt(requestConfig, requestPrompt), references, n, requestSize, options);
-    }
-    const responseFormat = requestedImageResponseFormat(config, requestConfig.model);
-    const formData = new FormData();
-    formData.set("model", requestConfig.model);
-    formData.set("prompt", withSystemPrompt(requestConfig, requestPrompt));
-    if (!junliImage) formData.set("n", String(n));
-    if (responseFormat) formData.set("response_format", responseFormat);
-    if (!junliImage && !seedream && quality) {
-        formData.set("quality", quality);
-    }
-    if (requestSize) {
-        formData.set("size", requestSize);
-    }
-    const files = await Promise.all(references.map(imageToFile));
-    files.forEach((file) => formData.append("image", file));
-    if (mask) formData.set("mask", dataUrlToFile(mask));
+    const model = modelOptionName(selectedModel);
+    const toTaskReference = (image: ReferenceImage) => ({
+        id: image.id,
+        name: image.name,
+        type: "image",
+        dataUrl: image.dataUrl?.startsWith("data:") ? image.dataUrl : undefined,
+        url: image.dataUrl?.startsWith("data:") ? undefined : image.url || image.dataUrl || undefined,
+    });
+    const response = await fetch(apiUrl("/api/image-tasks"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+            kind,
+            config: { model, ...(config.quality ? { quality: config.quality } : {}), ...(config.size ? { size: config.size } : {}) },
+            prompt: withSystemPrompt(config, prompt),
+            references: references.length ? references.map(toTaskReference) : undefined,
+            mask: mask ? toTaskReference(mask) : undefined,
+            source: "canvas",
+        }),
+        signal: options?.signal,
+    });
+    const body = (await response.json()) as { task?: ImageTask; error?: string };
+    if (!response.ok || !body.task?.id) throw new Error(body.error || `图片任务创建失败：${response.status}`);
+    const task = await pollImageTask(body.task.id, options);
+    const results = task.result?.results?.length ? task.result.results : task.result ? [task.result] : [];
+    const images = results.map((result) => ({ id: nanoid(), dataUrl: imageTaskResultUrl(result) })).filter((item) => item.dataUrl);
+    if (!images.length) throw new Error("图片接口没有返回图片");
+    return images;
+}
 
-    try {
-        const url = aiApiUrl(requestConfig, "/images/edits");
-        const response = await axios.post<ImageApiResponse>(url, formData, { headers: { ...aiHeaders(requestConfig), ...durableGenerationHeaders(url, options?.jobId) }, signal: options?.signal, timeout: IMAGE_GENERATION_TIMEOUT_MS });
-        const images = parseImagePayload(response.data, requestConfig.useProxy);
-        return images;
-    } catch (error) {
-        throw new Error(readAxiosError(error, "请求失败"));
-    }
+export async function requestGeneration(config: AiConfig, prompt: string, options?: RequestOptions) {
+    return requestImageTask(config, "generation", prompt, [], undefined, options);
+}
+
+export async function requestEdit(config: AiConfig, prompt: string, references: ReferenceImage[], mask?: ReferenceImage, options?: RequestOptions) {
+    return requestImageTask(config, "edit", prompt, references, mask, options);
 }
 
 async function requestAgnesImages(config: AiConfig, prompt: string, references: ReferenceImage[], n: number, size: string | undefined, options?: RequestOptions) {

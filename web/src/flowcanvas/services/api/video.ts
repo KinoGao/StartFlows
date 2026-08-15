@@ -1,4 +1,5 @@
 import axios from "axios";
+import { apiUrl } from "@/flowcanvas/constant/env";
 
 import { uploadMediaFile, type UploadedFile } from "@/flowcanvas/services/file-storage";
 import { imageToDataUrl, imageToFile } from "@/flowcanvas/services/image-storage";
@@ -114,22 +115,36 @@ export async function waitForVideoGenerationTask(config: AiConfig, task: VideoGe
 }
 
 export async function createVideoGenerationTask(config: AiConfig, prompt: string, references: ReferenceImage[] = [], videoReferences: ReferenceVideo[] = [], audioReferences: ReferenceAudio[] = [], options?: RequestOptions): Promise<VideoGenerationTask> {
+    // VOZEB 任务化视频生成：创建任务 + 轮询，服务端执行（页面关闭也继续）
     const selectedModel = (config.model || config.videoModel).trim();
-    const requestConfig = resolveModelRequestConfig(config, selectedModel);
-    assertVideoConfig(requestConfig, requestConfig.model);
-    const capability = await resolveVideoModelCapabilityForRequest(modelOptionName(selectedModel));
-    const generationMode = resolveGenerationMode(options?.generationMode, capability, references, videoReferences, audioReferences);
-    const selectedReferences = selectVideoReferences(generationMode, references, videoReferences, audioReferences, capability);
-    if (capability?.requestAdapter === "agnes-v2" || (!capability && isAgnesVideoConfig(requestConfig))) {
-        if (selectedReferences.videos.length || selectedReferences.audios.length) {
-            throw new Error("Agnes 视频接口暂不支持参考视频或参考音频，请移除相关素材");
-        }
-        return createAgnesVideoTask(requestConfig, selectedModel, prompt, selectedReferences.images, generationMode, capability, options);
-    }
-    if (selectedReferences.videos.length || selectedReferences.audios.length) {
-        throw new Error("当前视频协议不支持参考视频或参考音频，请切换到支持该能力的协议，或移除参考素材");
-    }
-    return createOpenAIVideoTask(requestConfig, selectedModel, prompt, selectedReferences.images, generationMode, options);
+    const model = modelOptionName(selectedModel);
+    const referenceUrl = (item: { dataUrl?: string; url?: string }) => (item.dataUrl?.startsWith("data:") ? item.dataUrl : item.url || item.dataUrl || "");
+    const referencesPayload = [
+        ...references.map((item) => ({ type: "image", role: "reference", url: referenceUrl(item) })),
+        ...videoReferences.map((item) => ({ type: "video", role: "reference", url: referenceUrl(item) })),
+        ...audioReferences.map((item) => ({ type: "audio", role: "reference", url: referenceUrl(item) })),
+    ].filter((item) => item.url);
+    const response = await fetch(apiUrl("/api/video-generation-tasks"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+            config: {
+                model,
+                ...(config.size ? { size: config.size } : {}),
+                ...(config.vquality ? { vquality: config.vquality } : {}),
+                ...(config.videoSeconds ? { videoSeconds: config.videoSeconds } : {}),
+                ...(config.videoGenerateAudio ? { videoGenerateAudio: config.videoGenerateAudio } : {}),
+                ...(config.videoWatermark ? { videoWatermark: config.videoWatermark } : {}),
+            },
+            prompt,
+            references: referencesPayload.length ? referencesPayload : undefined,
+            source: "canvas",
+        }),
+        signal: options?.signal,
+    });
+    const body = (await response.json()) as { task?: { id?: string }; error?: string };
+    if (!response.ok || !body.task?.id) throw new Error(body.error || `视频任务创建失败：${response.status}`);
+    return { id: body.task.id, provider: "openai", model: selectedModel };
 }
 
 function resolveGenerationMode(requested: VideoGenerationMode | undefined, capability: VideoModelCapability | null, images: ReferenceImage[], videos: ReferenceVideo[], audios: ReferenceAudio[]): VideoGenerationMode {
@@ -197,16 +212,40 @@ function boundedReferences<T>(label: string, values: T[], max: number | undefine
     return values;
 }
 
-export async function pollVideoGenerationTask(config: AiConfig, task: VideoGenerationTask, options?: RequestOptions): Promise<VideoGenerationTaskState> {
-    const requestConfig = resolveModelRequestConfig(config, task.model);
-    assertVideoConfig(requestConfig, requestConfig.model);
-    if (task.provider === "agnes") return pollAgnesVideoTask(requestConfig, task, options);
-    return pollOpenAIVideoTask(requestConfig, task, options);
+type VideoTaskRecord = {
+    id: string;
+    status: "pending" | "running" | "success" | "error" | "cancelled";
+    result?: { url?: string; remoteUrl?: string; mimeType?: string; durationMs?: number };
+    error?: string | { message?: string };
+    needsReview?: boolean;
+    reviewReason?: string;
+};
+
+function absoluteTaskMediaUrl(url: string) {
+    if (/^https?:\/\//i.test(url)) return url;
+    if (typeof window === "undefined") return url;
+    return new URL(url, window.location.origin).toString();
+}
+
+export async function pollVideoGenerationTask(_config: AiConfig, task: VideoGenerationTask, options?: RequestOptions): Promise<VideoGenerationTaskState> {
+    const response = await fetch(apiUrl(`/api/video-tasks/${encodeURIComponent(task.id)}`), { signal: options?.signal });
+    const body = (await response.json()) as { task?: VideoTaskRecord; error?: string };
+    const record = body.task;
+    if (!record) throw new Error(body.error || `视频任务查询失败：${response.status}`);
+    if (record.status === "success") {
+        const url = record.result?.url || record.result?.remoteUrl || "";
+        if (!url) throw new Error("视频接口没有返回可播放的视频");
+        return { status: "completed", result: { url: absoluteTaskMediaUrl(url), mimeType: record.result?.mimeType || "video/mp4" } };
+    }
+    if (record.status === "error") return { status: "failed", error: typeof record.error === "string" ? record.error : record.error?.message || "视频生成失败" };
+    if (record.status === "cancelled") return { status: "failed", error: "视频任务已取消" };
+    if (record.needsReview) return { status: "failed", error: record.reviewReason || "视频结果需要人工复核" };
+    return { status: "pending" };
 }
 
 export async function storeGeneratedVideo(result: VideoGenerationResult): Promise<UploadedFile> {
     if (result.blob) return uploadMediaFile(result.blob, "video");
-    if (result.url) return uploadMediaFile(await downloadVideoBlob(result.url), "video");
+    if (result.url) return uploadMediaFile(result.url, "video");
     throw new Error("视频接口没有返回可播放的视频");
 }
 

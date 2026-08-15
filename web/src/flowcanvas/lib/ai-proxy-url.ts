@@ -12,5 +12,5 @@ export function rewriteThroughProxy(url: string, useProxy?: boolean): string {
     if (!useProxy) return url;
     if (typeof url !== "string" || !url) return url;
     if (!/^https?:/i.test(url)) return url;
-    return apiUrl(`/api/ai-proxy?target=${encodeURIComponent(url)}`);
+    return apiUrl(`/api/media-proxy?url=${encodeURIComponent(url)}`);
 }

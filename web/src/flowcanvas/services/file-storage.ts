@@ -12,6 +12,24 @@ const store = localforage.createInstance({ name: "infinite-canvas", storeName: "
 const mediaBlobs = createBlobStorage(store);
 
 export async function uploadMediaFile(input: string | Blob, prefix = "file"): Promise<UploadedFile> {
+    // VOZEB：生成结果已是站内资产 URL 时直接登记引用，不再重复上传
+    if (typeof input === "string" && !input.startsWith("data:")) {
+        const match = (() => {
+            try {
+                const parsed = new URL(input, window.location.origin);
+                if (parsed.origin !== window.location.origin) return null;
+                return parsed.pathname.match(/^\/api\/(reference-assets|generation-log-assets)\/(.+)$/);
+            } catch {
+                return null;
+            }
+        })();
+        if (match) {
+            const url = new URL(input, window.location.origin).toString();
+            const meta = prefix === "video" ? await readVideoMeta(url) : prefix === "audio" ? await readAudioMeta(url) : {};
+            const isReference = match[1] === "reference-assets";
+            return { url, storageKey: isReference ? `backend:${match[2]}` : "", bytes: 0, mimeType: prefix === "audio" ? "audio/mpeg" : prefix === "video" ? "video/mp4" : "application/octet-stream", ...meta };
+        }
+    }
     const blob = typeof input === "string" ? await fetchMediaBlob(input) : input;
     const { saveMode, token } = useUserStore.getState();
     if (saveMode === "backend") {
