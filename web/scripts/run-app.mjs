@@ -13,7 +13,7 @@ const environment = { ...runtime.environment, NEXT_DIST_DIR: runtime.environment
 if (runtime.ephemeralToken) console.log("Generated ephemeral maintenance and worker tokens for this local development process.");
 
 process.exitCode = await superviseGenerationRuntime({
-    app: { command: process.execPath, args: [nextEntry, "dev", "--webpack", "-H", "0.0.0.0", "-p", "3000"], cwd: webRoot },
+    app: { command: process.execPath, args: [nextEntry, "dev", "--turbopack", "-H", "0.0.0.0", "-p", "3000"], cwd: webRoot },
     workerScript: path.join(webRoot, "scripts", "generation-worker.mjs"),
     environment,
 });
