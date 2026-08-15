@@ -358,8 +358,12 @@ export function CanvasAssistantPanel({
     const snapshotRef = useRef(snapshot);
     const pendingToolContextRef = useRef(new Map<string, PendingOnlineToolContext>());
 
+    // 父子会话同步用引用比对防乒乓：上游内容与本地一致时不再回写（Maximum update depth 修复）
+    const sessionSyncRef = useRef<{ sessions: CanvasAssistantSession[]; activeId: string | null }>({ sessions, activeId: activeSessionId });
     useEffect(() => {
         if (!sessions.length) return;
+        if (sessions === sessionSyncRef.current.sessions && activeSessionId === sessionSyncRef.current.activeId) return;
+        sessionSyncRef.current = { sessions, activeId: activeSessionId };
         setLocalSessions(sessions);
         setLocalActiveSessionId(activeSessionId);
     }, [activeSessionId, sessions]);
@@ -369,6 +373,8 @@ export function CanvasAssistantPanel({
     }, [snapshot]);
 
     useEffect(() => {
+        if (localSessions === sessionSyncRef.current.sessions && localActiveSessionId === sessionSyncRef.current.activeId) return;
+        sessionSyncRef.current = { sessions: localSessions, activeId: localActiveSessionId };
         onSessionsChange(localSessions, localActiveSessionId);
     }, [localActiveSessionId, localSessions, onSessionsChange]);
 
