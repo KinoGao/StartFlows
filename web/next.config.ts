@@ -35,7 +35,8 @@ export default function nextConfig(phase: string): NextConfig {
         },
         experimental: {
             ...(Number.isSafeInteger(configuredBuildCpus) && configuredBuildCpus > 0 ? { cpus: configuredBuildCpus } : {}),
-            proxyClientMaxBodySize: "32mb",
+            // 画布媒体上传（视频最大 200MB，base64 后约 267MB）经 proxy 转发，放宽请求体上限
+            proxyClientMaxBodySize: "300mb",
         },
         async rewrites() {
             return {

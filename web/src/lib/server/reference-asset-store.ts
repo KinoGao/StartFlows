@@ -120,10 +120,13 @@ function referenceRegistration(token: string, persistent: boolean, type: "image"
 }
 
 function parseMediaDataUrl(dataUrl: string) {
-    const match = dataUrl.match(/^data:((?:image\/(?:png|jpe?g|webp|gif))|(?:video\/(?:mp4|webm|quicktime))|(?:audio\/(?:mpeg|mp3|wav|x-wav|ogg|opus|aac|flac)));base64,([a-z0-9+/=\s]+)$/i);
+    // 只对头部跑正则：对大 base64 负载整体 match 会在 V8 irregexp 回溯栈上溢出（Maximum call stack size exceeded）
+    const commaIndex = dataUrl.indexOf(",");
+    if (commaIndex <= 0) return null;
+    const match = dataUrl.slice(0, commaIndex).match(/^data:((?:image\/(?:png|jpe?g|webp|gif))|(?:video\/(?:mp4|webm|quicktime))|(?:audio\/(?:mpeg|mp3|wav|x-wav|ogg|opus|aac|flac)));base64$/i);
     if (!match) return null;
     const mimeType = normalizeMimeType(match[1]);
-    const bytes = Buffer.from(match[2].replace(/\s/g, ""), "base64");
+    const bytes = Buffer.from(dataUrl.slice(commaIndex + 1).replace(/\s/g, ""), "base64");
     return bytes.length ? { mimeType, bytes } : null;
 }
 

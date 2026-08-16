@@ -46,6 +46,7 @@ export async function POST(request: Request) {
             mimeType: asset.mimeType,
         });
     } catch (error) {
+        console.error("[reference-assets] 上传失败", error);
         return NextResponse.json({ error: error instanceof Error ? error.message : "参考图临时保存失败" }, { status: 400 });
     }
 }
