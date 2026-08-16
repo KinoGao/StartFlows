@@ -14,19 +14,23 @@ export async function POST(request: Request) {
     const currentUser = await getCurrentUser();
     if (!currentUser) return NextResponse.json({ error: "请先登录" }, { status: 401 });
 
-    const body = await readJsonBody<{ dataUrl?: unknown; type?: unknown; persistent?: unknown; originalName?: unknown }>(request, 28 * 1024 * 1024).catch(() => ({}) as { dataUrl?: unknown; type?: unknown; persistent?: unknown; originalName?: unknown });
+    // 持久化上传（画布导入 / 画布媒体上传）允许大文件：视频上限 200MB（base64 后约 267MB），JSON 体上限相应放宽；
+    // 临时参考图仍按 20MB 收紧。
+    const body = await readJsonBody<{ dataUrl?: unknown; type?: unknown; persistent?: unknown; originalName?: unknown }>(request, 300 * 1024 * 1024).catch(() => ({}) as { dataUrl?: unknown; type?: unknown; persistent?: unknown; originalName?: unknown });
     const dataUrl = typeof body.dataUrl === "string" ? body.dataUrl : "";
     if (!dataUrl) return NextResponse.json({ error: "缺少参考素材" }, { status: 400 });
     const type = body.type === "video" || body.type === "audio" ? body.type : "image";
+    const persistent = body.persistent === true;
 
     try {
         const context = {
             ownerUserId: currentUser.id,
             source: "user-upload",
             originalName: typeof body.originalName === "string" ? body.originalName : undefined,
-            maxBytes: CREATIVE_UPLOAD_MAX_BYTES,
+            // 持久化媒体不传 maxBytes，走存储层按类型的上限（图 20MB / 视频 200MB / 音频 30MB）
+            ...(persistent ? {} : { maxBytes: CREATIVE_UPLOAD_MAX_BYTES }),
         };
-        const asset = body.persistent === true ? await writePersistentMediaDataUrl(dataUrl, type, context) : await writeReferenceMediaDataUrl(dataUrl, type, context);
+        const asset = persistent ? await writePersistentMediaDataUrl(dataUrl, type, context) : await writeReferenceMediaDataUrl(dataUrl, type, context);
         const origin = resolvePublicRequestOrigin(request);
         const browserUrl = `/api/reference-assets/${asset.token
             .split("/")

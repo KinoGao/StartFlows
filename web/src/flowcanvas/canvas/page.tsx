@@ -97,8 +97,12 @@ export default function CanvasPage() {
                 const uploads = new Map<string, BackendUploadedFile>();
                 await Promise.all(
                     Array.from(packageFiles.entries()).map(async ([storageKey, item]) => {
-                        const uploaded = await uploadBackendFile(token, item.blob, item.path.split("/").pop() || "file");
-                        uploads.set(storageKey, uploaded);
+                        try {
+                            const uploaded = await uploadBackendFile(token, item.blob, item.path.split("/").pop() || "file");
+                            uploads.set(storageKey, uploaded);
+                        } catch (error) {
+                            throw new Error(`媒体文件上传失败（${item.path.split("/").pop()}）：${error instanceof Error ? error.message : "未知错误"}`);
+                        }
                     }),
                 );
                 for (const item of data.projects) {
@@ -116,8 +120,9 @@ export default function CanvasPage() {
                 data.projects.forEach((item) => importProject(item.project));
             }
             message.success(`已导入 ${data.projects.length} 个画布`);
-        } catch {
-            message.error("导入失败，请选择有效的画布压缩包");
+        } catch (error) {
+            console.error("[canvas] 导入画布失败", error);
+            message.error(error instanceof Error && error.message ? `导入失败：${error.message}` : "导入失败，请选择有效的画布压缩包");
         } finally {
             if (inputRef.current) inputRef.current.value = "";
         }

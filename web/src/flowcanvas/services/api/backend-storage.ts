@@ -26,13 +26,13 @@ export type BackendUploadedFile = {
 };
 
 async function readApi<T>(response: Response): Promise<T> {
-    let body: { code?: number; data?: unknown; msg?: string } | null = null;
+    let body: { code?: number; data?: unknown; msg?: string; error?: string } | null = null;
     try {
-        body = (await response.json()) as { code?: number; data?: unknown; msg?: string };
+        body = (await response.json()) as { code?: number; data?: unknown; msg?: string; error?: string };
     } catch {
         body = null;
     }
-    if (!response.ok || (body?.code !== undefined && body.code !== 0)) throw new ApiError(body?.msg || `请求失败：${response.status}`, response.status);
+    if (!response.ok || (body?.code !== undefined && body.code !== 0)) throw new ApiError(body?.msg || body?.error || `请求失败：${response.status}`, response.status);
     return (body && "data" in body ? body.data : body) as T;
 }
 
