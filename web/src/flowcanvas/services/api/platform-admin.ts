@@ -198,8 +198,11 @@ type VozebSessionSettings = {
  */
 export async function fetchRuntimeConfig() {
     // 注意：/api/auth/session 是平铺 JSON（非 {code,data} 信封）
-    const body = (await (await fetch(apiUrl("/api/auth/session"))).json()) as { settings?: VozebSessionSettings };
-    const settings = body?.settings ?? {};
+    const [sessionBody, comfyBody] = await Promise.all([
+        (await fetch(apiUrl("/api/auth/session"))).json() as Promise<{ settings?: VozebSessionSettings }>,
+        (await fetch(apiUrl("/api/comfyui-config"))).json().catch(() => null) as Promise<{ comfyui?: RuntimeConfig["comfyui"] } | null>,
+    ]);
+    const settings = sessionBody?.settings ?? {};
     const channels = (settings.systemChannels ?? []).filter((channel) => channel.enabled);
     const channelById = new Map(channels.map((channel) => [channel.id, channel]));
     const providers: RuntimeProvider[] = [];
@@ -230,9 +233,12 @@ export async function fetchRuntimeConfig() {
         });
     }
     const defaults = settings.defaultModels ?? {};
+    const comfyui = comfyBody?.comfyui;
     const runtime: RuntimeConfig = {
         providers,
-        comfyui: { enabled: false, clientId: "", defaultWorkflowId: "", timeoutSeconds: 0, pollIntervalMs: 0 },
+        comfyui: comfyui?.enabled
+            ? comfyui
+            : { enabled: false, clientId: "", defaultWorkflowId: "", timeoutSeconds: 0, pollIntervalMs: 0 },
         defaultModels: {
             text: defaults.textModel ?? "",
             image: defaults.imageModel ?? "",
