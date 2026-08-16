@@ -16,7 +16,7 @@ import type { GenerationLogAsset, GenerationLogDatabase, GenerationLogKind, Gene
 
 const LOG_DATA_FILE = "generation-logs.json";
 const ASSET_ROOT = GENERATION_MEDIA_ROOT;
-const MAX_SERVER_IMAGE_BYTES = 20 * 1024 * 1024;
+const MAX_SERVER_IMAGE_BYTES = 48 * 1024 * 1024;
 const MAX_SERVER_VIDEO_BYTES = 300 * 1024 * 1024;
 const SERVER_ASSET_DOWNLOAD_TIMEOUT_MS = 120000;
 

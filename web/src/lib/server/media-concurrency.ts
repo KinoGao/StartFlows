@@ -9,7 +9,7 @@ type MediaConcurrencyPermit = {
 
 const LIMITS: Record<MediaConcurrencyScope, { total: number; perIdentity: number; leaseMs: number }> = {
     local: { total: 64, perIdentity: 8, leaseMs: 10 * 60 * 1000 },
-    proxy: { total: 32, perIdentity: 4, leaseMs: 10 * 60 * 1000 },
+    proxy: { total: 64, perIdentity: 16, leaseMs: 10 * 60 * 1000 },
     public: { total: 96, perIdentity: 24, leaseMs: 10 * 60 * 1000 },
 };
 
