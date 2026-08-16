@@ -33,6 +33,7 @@ import {
     UsersRound,
     UserRoundX,
     WalletCards,
+    Workflow,
     X,
 } from "lucide-react";
 import { canAccessAdminSection, type AdminSectionKey } from "@/components/admin/admin-sections";
@@ -190,6 +191,7 @@ export const adminSections: AdminSection[] = [
     { key: "site", label: "站点资料", description: "管理前台网站标题、Logo、SEO 标题、描述和关键词。", shortDescription: "品牌与 SEO", icon: <Globe2 className="size-4" /> },
     { key: "channels", label: "模型渠道", description: "添加上游接口，维护模型目录、逻辑绑定和各能力默认模型。", shortDescription: "上游接口", icon: <PlugZap className="size-4" /> },
     { key: "skills", label: "Agent Skills", description: "管理 Agent 专业能力、触发词、来源和执行规则。", shortDescription: "专业能力", icon: <Sparkles className="size-4" /> },
+    { key: "comfyui", label: "ComfyUI", description: "配置画布 ComfyUI 节点使用的本地 ComfyUI 服务地址、客户端标识与任务轮询参数。", shortDescription: "本地工作流", icon: <Workflow className="size-4" /> },
     { key: "settings", label: "基础设置", description: "管理注册、邮箱、生成与数据维护。", shortDescription: "账号与生成", icon: <SlidersHorizontal className="size-4" /> },
     { key: "accountDeletion", label: "注销申请", description: "查看用户账号注销申请，完成身份核验、受理或拒绝并保留审计记录。", shortDescription: "用户权利请求", icon: <UserRoundX className="size-4" /> },
     { key: "mediaStorage", label: "本地媒体", description: "查看服务器图片、视频和音频文件，管理临时期限与长期存储。", shortDescription: "文件与期限", icon: <HardDrive className="size-4" /> },
@@ -207,7 +209,7 @@ export const adminSectionGroups: AdminSectionGroup[] = [
     { title: "商品运营", items: sectionsFor(["products", "orders"]) },
     { title: "营销推广", items: sectionsFor(["promotions", "coupons", "referrals"]) },
     { title: "财务管理", items: sectionsFor(["points", "payments", "cdk", "wallet"]) },
-    { title: "上游配置", items: sectionsFor(["channels", "skills"]) },
+    { title: "上游配置", items: sectionsFor(["channels", "skills", "comfyui"]) },
     { title: "系统管理", items: sectionsFor(["site", "settings", "accountDeletion"]) },
     { title: "存储与备份", items: sectionsFor(["mediaStorage", "externalStorage", "backup"]) },
     { title: "内容运营", items: sectionsFor(["works", "announcements", "prompts"]) },

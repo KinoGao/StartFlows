@@ -8,11 +8,12 @@ import { readJsonBody } from "@/lib/auth/request";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-/** 创作端运行时 ComfyUI 配置（不含 baseUrl） */
+/** 创作端运行时 ComfyUI 配置（普通用户不含 baseUrl，管理员返回完整配置） */
 export async function GET() {
     const currentUser = await getCurrentUser();
     if (!currentUser) return NextResponse.json({ error: "请先登录" }, { status: 401 });
-    return NextResponse.json({ comfyui: runtimeComfyUiConfig(await getComfyUiConfig()) });
+    const config = await getComfyUiConfig();
+    return NextResponse.json({ comfyui: hasAnyAdminPermission(currentUser) ? config : runtimeComfyUiConfig(config) });
 }
 
 /** 管理员更新 ComfyUI 平台配置 */

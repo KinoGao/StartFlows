@@ -44,6 +44,7 @@ const loadCdkSection = () => import("./admin-cdk-section").then((module) => modu
 const loadReferralsSection = () => import("./admin-marketing-sections").then((module) => module.AdminReferralsSection);
 const loadChannelsSection = () => import("./admin-upstream-sections").then((module) => module.AdminChannelsSection);
 const loadSkillsSection = () => import("./admin-upstream-sections").then((module) => module.AdminSkillsSection);
+const loadComfyUiSection = () => import("./admin-comfyui-section").then((module) => module.AdminComfyUiSection);
 const loadAnnouncementsSection = () => import("./admin-content-sections").then((module) => module.AdminAnnouncementsSection);
 const loadPromptsSection = () => import("./admin-content-sections").then((module) => module.AdminPromptsSection);
 const loadWorksSection = () => import("@/app/admin/works/components/admin-works-section").then((module) => module.AdminWorksSection);
@@ -98,6 +99,7 @@ const AdminPaymentsSection = dynamic(loadPaymentsSection, { loading: AdminSectio
 const AdminCdkSection = dynamic(loadCdkSection, { loading: AdminSectionLoading });
 const AdminChannelsSection = dynamic(loadChannelsSection, { loading: AdminSectionLoading });
 const AdminSkillsSection = dynamic(loadSkillsSection, { loading: AdminSectionLoading });
+const AdminComfyUiSection = dynamic(loadComfyUiSection, { loading: AdminSectionLoading });
 const AdminAnnouncementsSection = dynamic(loadAnnouncementsSection, { loading: AdminSectionLoading });
 const AdminPromptsSection = dynamic(loadPromptsSection, { loading: AdminSectionLoading });
 const AdminWorksSection = dynamic(loadWorksSection, { loading: AdminSectionLoading });
@@ -250,6 +252,7 @@ export function AdminDashboard(props: AdminDashboardProps) {
                     {activeSection === "updates" ? <AdminUpdatesSection controller={controller} /> : null}
                     {activeSection === "channels" ? <AdminChannelsSection controller={controller} /> : null}
                     {activeSection === "skills" ? <AdminSkillsSection controller={controller} /> : null}
+                    {activeSection === "comfyui" ? <AdminComfyUiSection /> : null}
                     {activeSection === "cdk" ? <AdminCdkSection controller={controller} /> : null}
                     {activeSection === "announcements" ? <AdminAnnouncementsSection controller={controller} /> : null}
                     {activeSection === "works" ? <AdminWorksSection /> : null}
