@@ -5,21 +5,18 @@ import { describe, expect, it } from "vitest";
 
 import { DEFAULT_SITE_SETTINGS } from "@/lib/auth/store";
 
-describe("default infinite-evolution brand assets", () => {
-    it("uses the built-in infinite-evolution logo for every default brand entry", () => {
-        expect(DEFAULT_SITE_SETTINGS.logoUrl).toBe("/logo.svg");
-        expect(DEFAULT_SITE_SETTINGS.iconUrl).toBe("/icon.svg");
+const PNG_MAGIC = Buffer.from([0x89, 0x50, 0x4e, 0x47]);
+
+describe("default StartFlows brand assets", () => {
+    it("uses the built-in StartFlows logo for every default brand entry", () => {
+        expect(DEFAULT_SITE_SETTINGS.logoUrl).toBe("/logo.png");
+        expect(DEFAULT_SITE_SETTINGS.iconUrl).toBe("/icon.png");
     });
 
-    it("keeps web logo, browser icon and docs logo identical without triangle primitives", async () => {
-        const [logo, icon, docsLogo] = await Promise.all([readFile(resolve(process.cwd(), "public/logo.svg"), "utf8"), readFile(resolve(process.cwd(), "public/icon.svg"), "utf8"), readFile(resolve(process.cwd(), "../docs/public/logo.svg"), "utf8")]);
+    it("ships logo and browser icon as valid PNG assets", async () => {
+        const [logo, icon] = await Promise.all([readFile(resolve(process.cwd(), "public/logo.png")), readFile(resolve(process.cwd(), "public/icon.png"))]);
 
-        expect(markupShape(icon)).toBe(markupShape(logo));
-        expect(markupShape(docsLogo)).toBe(markupShape(logo));
-        expect(logo).not.toMatch(/<(?:polygon|polyline)\b|triangle/i);
+        expect(logo.subarray(0, 4).equals(PNG_MAGIC)).toBe(true);
+        expect(icon.subarray(0, 4).equals(PNG_MAGIC)).toBe(true);
     });
 });
-
-function markupShape(svg: string) {
-    return svg.match(/<path\b[^>]*\bd="([^"]+)"/)?.[1];
-}

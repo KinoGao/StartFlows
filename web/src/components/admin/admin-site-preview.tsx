@@ -17,7 +17,7 @@ export const siteSocialItems: Array<{ key: SiteSocialKey; label: string; placeho
 export function SiteLogoPreview({ logoUrl }: { logoUrl: string }) {
     return (
         <span className="grid size-12 place-items-center rounded-md bg-stone-100 p-1 text-stone-950 dark:bg-white/10 dark:text-white">
-            <SiteLogo logoUrl={logoUrl || "/logo.svg"} className="size-10" />
+            <SiteLogo logoUrl={logoUrl || "/logo.png"} className="size-10" />
         </span>
     );
 }

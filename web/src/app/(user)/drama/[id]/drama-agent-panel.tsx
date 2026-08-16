@@ -162,7 +162,7 @@ function DramaAgentContent({
 }) {
     const { message, modal } = App.useApp();
     const replaceProject = useDramaStore((state) => state.replaceProject);
-    const site = usePublicSessionStore((state) => state.payload?.settings?.site) || { logoUrl: "/logo.svg" };
+    const site = usePublicSessionStore((state) => state.payload?.settings?.site) || { logoUrl: "/logo.png" };
     const { skills, skillsLoading, models } = useCreativeAgentOptions("drama");
     const [messages, setMessages] = useState<CreativeMessage[]>([]);
     const [assets, setAssets] = useState<CreativeAsset[]>([]);

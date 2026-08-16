@@ -25,7 +25,7 @@ export function LazyMediaImage({
 }) {
     const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
     const [placeholderReady, setPlaceholderReady] = useState(false);
-    const logoUrl = usePublicSessionStore((state) => state.payload?.settings?.site?.logoUrl) || "/logo.svg";
+    const logoUrl = usePublicSessionStore((state) => state.payload?.settings?.site?.logoUrl) || "/logo.png";
     const hasPlaceholder = Boolean(placeholderSrc && placeholderSrc !== src);
 
     useEffect(() => setStatus("loading"), [src]);

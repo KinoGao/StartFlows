@@ -1,8 +1,8 @@
 <p align="center">
-  <img src="web/public/logo.svg?v=0.0.6" width="108" alt="VOZEB PRO logo">
+  <img src="web/public/logo.png" width="108" alt="StartFlows logo">
 </p>
 
-<h1 align="center">VOZEB PRO</h1>
+<h1 align="center">StartFlows</h1>
 
 <p align="center">面向统一创作 Agent、Canvas 与短剧生产的开源 AI 创作平台</p>
 

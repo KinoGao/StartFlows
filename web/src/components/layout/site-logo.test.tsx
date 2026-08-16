@@ -9,13 +9,13 @@ describe("SiteLogo", () => {
 
         expect(markup).toContain('src="https://cdn.example.com/brand.svg"');
         expect(markup).toContain('referrerPolicy="no-referrer"');
-        expect(markup).not.toContain("url(/logo.svg)");
+        expect(markup).not.toContain("url(/logo.png)");
     });
 
     it("keeps the bundled mark as a safe loading fallback", () => {
-        const markup = renderToStaticMarkup(<SiteLogo logoUrl="/logo.svg" className="size-8" />);
+        const markup = renderToStaticMarkup(<SiteLogo logoUrl="/logo.png" className="size-8" />);
 
-        expect(markup).toContain("url(/logo.svg)");
+        expect(markup).toContain("url(/logo.png)");
         expect(markup).toContain('aria-hidden="true"');
     });
 });

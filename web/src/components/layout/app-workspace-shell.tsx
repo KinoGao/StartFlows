@@ -24,7 +24,7 @@ export function AppWorkspaceShell({ children }: { children: ReactNode }) {
     const pathname = usePathname();
     const [mobileNavOpen, setMobileNavOpen] = useState(false);
     const [sidebarExpanded, setSidebarExpanded] = useState(true);
-    const site = usePublicSessionStore((state) => state.payload?.settings?.site) || { title: DEFAULT_SITE_TITLE, logoUrl: "/logo.svg" };
+    const site = usePublicSessionStore((state) => state.payload?.settings?.site) || { title: DEFAULT_SITE_TITLE, logoUrl: "/logo.png" };
     const siteTitle = resolveSiteTitle(site.title);
     const tool = navigationToolForPathname(pathname);
     const fullscreen = isFullscreenWorkspacePath(pathname);

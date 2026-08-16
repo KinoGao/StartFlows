@@ -353,7 +353,7 @@ function WorkCollection({
     if (!items.length) {
         return (
             <div className="flex min-h-52 flex-col items-center justify-center px-4 text-center">
-                <SiteLogo logoUrl="/logo.svg" className="size-9 opacity-35" />
+                <SiteLogo logoUrl="/logo.png" className="size-9 opacity-35" />
                 <h2 className="mt-3 text-sm font-semibold">{emptyTitle}</h2>
                 <p className="mt-1 max-w-sm text-xs leading-5 text-muted-foreground">{emptyDescription}</p>
                 <div className="mt-4">{emptyAction}</div>

@@ -22,7 +22,7 @@ export function MobileNavDrawer({ open, activeToolSlug, onClose }: MobileNavDraw
     const pathname = usePathname();
     const router = useRouter();
     const previousPathnameRef = useRef(pathname);
-    const site = usePublicSessionStore((state) => state.payload?.settings?.site) || { title: DEFAULT_SITE_TITLE, logoUrl: "/logo.svg" };
+    const site = usePublicSessionStore((state) => state.payload?.settings?.site) || { title: DEFAULT_SITE_TITLE, logoUrl: "/logo.png" };
     const siteTitle = resolveSiteTitle(site.title);
     const helpActive = pathname.startsWith("/help");
 

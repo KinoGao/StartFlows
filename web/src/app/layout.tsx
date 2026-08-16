@@ -24,7 +24,7 @@ export const viewport: Viewport = {
 export async function generateMetadata(): Promise<Metadata> {
     const site = await getPublicSiteSettings();
     const base = siteMetadataBase();
-    const logoUrl = absoluteSiteUrl(site.logoUrl || "/logo.svg", base);
+    const logoUrl = absoluteSiteUrl(site.logoUrl || "/logo.png", base);
     const title = site.seoTitle || site.title;
     return {
         metadataBase: base,
@@ -66,7 +66,7 @@ export default async function RootLayout({
         name: site.title,
         description: site.seoDescription,
         url: websiteUrl,
-        logoUrl: absoluteSiteUrl(site.logoUrl || "/logo.svg", base),
+        logoUrl: absoluteSiteUrl(site.logoUrl || "/logo.png", base),
     });
 
     return (

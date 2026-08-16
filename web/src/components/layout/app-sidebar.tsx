@@ -13,7 +13,7 @@ import { usePublicSessionStore } from "@/stores/use-public-session-store";
 export function AppSidebar({ activeToolSlug, expanded }: { activeToolSlug?: NavigationToolSlug; expanded: boolean }) {
     const pathname = usePathname();
     const router = useRouter();
-    const site = usePublicSessionStore((state) => state.payload?.settings?.site) || { title: DEFAULT_SITE_TITLE, logoUrl: "/logo.svg" };
+    const site = usePublicSessionStore((state) => state.payload?.settings?.site) || { title: DEFAULT_SITE_TITLE, logoUrl: "/logo.png" };
     const siteTitle = resolveSiteTitle(site.title);
     const helpActive = pathname.startsWith("/help");
 

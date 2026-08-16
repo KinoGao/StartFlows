@@ -48,7 +48,7 @@ export function AuthForm({
 }: AuthFormProps) {
     const router = useRouter();
     const { message } = App.useApp();
-    const site = usePublicSessionStore((state) => state.payload?.settings?.site) || { title: DEFAULT_SITE_TITLE, logoUrl: "/logo.svg" };
+    const site = usePublicSessionStore((state) => state.payload?.settings?.site) || { title: DEFAULT_SITE_TITLE, logoUrl: "/logo.png" };
     const siteTitle = resolveSiteTitle(site.title);
     const setUser = useUserStore((state) => state.setUser);
     const [username, setUsername] = useState("");

@@ -65,7 +65,7 @@ export function CreativeMessages({
     followLatest?: boolean;
 }) {
     const endRef = useRef<HTMLDivElement>(null);
-    const site = usePublicSessionStore((state) => state.payload?.settings?.site) || { title: DEFAULT_SITE_TITLE, logoUrl: "/logo.svg" };
+    const site = usePublicSessionStore((state) => state.payload?.settings?.site) || { title: DEFAULT_SITE_TITLE, logoUrl: "/logo.png" };
     const user = usePublicSessionStore((state) => state.payload?.user || null);
     const models = useCreativeAgentModels();
     const avatarUrl = user?.avatarUrl?.trim();
@@ -228,7 +228,7 @@ function CreativeMediaRound({
     selectedAssetIds: string[];
     onToggleAsset: (id: string) => void;
 }) {
-    const siteLogoUrl = usePublicSessionStore((state) => state.payload?.settings?.site?.logoUrl || "/logo.svg");
+    const siteLogoUrl = usePublicSessionStore((state) => state.payload?.settings?.site?.logoUrl || "/logo.png");
     const displayContent = assistantMessage.status === "failed" ? friendlyAgentError(assistantMessage.content) : formatAgentMessageText(assistantMessage.content);
     const handoff = isCreativeProjectHandoff(assistantMessage.metadata.projectHandoff) ? assistantMessage.metadata.projectHandoff : null;
     const failedTasks = run?.tasks.filter((task) => task.status === "failed") || [];
@@ -398,7 +398,7 @@ function CreativeAssistantAvatar({ logoUrl, className }: { logoUrl?: string; cla
             className={cn("grid size-11 shrink-0 place-items-center rounded-full border border-[#b9b5ff] bg-white text-[#615cff] shadow-[0_4px_14px_rgba(97,92,255,0.08)] dark:border-[#514b81] dark:bg-[#1d2025]", className)}
             aria-label="创作助手"
         >
-            <SiteLogo logoUrl={logoUrl || "/logo.svg"} className="size-6" />
+            <SiteLogo logoUrl={logoUrl || "/logo.png"} className="size-6" />
         </span>
     );
 }

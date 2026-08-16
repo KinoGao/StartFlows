@@ -39,7 +39,7 @@ export function HomeActionsProvider({ initialSite, children }: { initialSite: Ho
             ...initialSite,
             ...(sessionSite || {}),
             title: resolveSiteTitle(sessionSite?.title || initialSite.title),
-            logoUrl: sessionSite?.logoUrl?.trim() || initialSite.logoUrl || "/logo.svg",
+            logoUrl: sessionSite?.logoUrl?.trim() || initialSite.logoUrl || "/logo.png",
             friendLinks: sessionSite?.friendLinks || initialSite.friendLinks,
             socials: (sessionSite?.socials as HomeSiteSettings["socials"] | undefined) || initialSite.socials,
         }),

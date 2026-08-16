@@ -85,7 +85,7 @@ export function applyPublicSiteSettings(site: PublicSiteSettings) {
                         ...(payload.settings?.site || {}),
                         ...site,
                         title: resolveSiteTitle(site.title),
-                        logoUrl: site.logoUrl?.trim() || "/logo.svg",
+                        logoUrl: site.logoUrl?.trim() || "/logo.png",
                     },
                 },
             },

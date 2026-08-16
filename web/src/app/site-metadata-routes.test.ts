@@ -69,18 +69,18 @@ describe("site metadata routes", () => {
     });
 
     it("keeps a site-local icon relative to the current host", async () => {
-        mocks.getPublicSiteSettings.mockResolvedValue({ title: "默认站点", iconUrl: "/icon.svg", logoUrl: "/logo.svg" });
+        mocks.getPublicSiteSettings.mockResolvedValue({ title: "默认站点", iconUrl: "/icon.png", logoUrl: "/logo.png" });
 
         const response = await favicon(new Request("http://localhost:3000/api/site-icon"));
 
-        expect(response.headers.get("location")).toBe("/icon.svg");
+        expect(response.headers.get("location")).toBe("/icon.png");
     });
 
-    it("falls back to the infinite-evolution icon when favicon points back to itself", async () => {
-        mocks.getPublicSiteSettings.mockResolvedValue({ title: "默认站点", iconUrl: "/favicon.ico", logoUrl: "/logo.svg" });
+    it("falls back to the bundled icon when favicon points back to itself", async () => {
+        mocks.getPublicSiteSettings.mockResolvedValue({ title: "默认站点", iconUrl: "/favicon.ico", logoUrl: "/logo.png" });
 
         const response = await favicon(new Request("http://localhost:3000/api/site-icon"));
 
-        expect(response.headers.get("location")).toBe("/icon.svg");
+        expect(response.headers.get("location")).toBe("/icon.png");
     });
 });

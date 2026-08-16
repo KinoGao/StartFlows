@@ -83,8 +83,8 @@ export const DEFAULT_USER_POINTS = 0;
 export const DEFAULT_MODEL_POINT_COST_KEY = "__default__";
 export const DEFAULT_SITE_SETTINGS: SiteSettings = {
     title: "VOZEB PRO",
-    logoUrl: "/logo.svg",
-    iconUrl: "/icon.svg",
+    logoUrl: "/logo.png",
+    iconUrl: "/icon.png",
     seoTitle: "VOZEB PRO",
     seoDescription: "面向 Agent、图片、视频、画布与短剧生产的一体化 AI 创作工作台",
     seoKeywords: "VOZEB PRO,AI Agent,AI 绘图,AI 视频,画布,短剧,提示词库,素材管理",
