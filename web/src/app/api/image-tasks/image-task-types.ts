@@ -96,7 +96,7 @@ export const MODEL_REQUEST_TIMEOUT_MS = 10 * 60 * 1000;
 export const IMAGE_TASK_POLL_INTERVAL_MS = 2500;
 export const IMAGE_TASK_POLL_ATTEMPTS = 120;
 export const MAX_INLINE_IMAGE_BYTES = 20 * 1024 * 1024;
-export const INLINE_IMAGE_TIMEOUT_MS = 30 * 1000;
+export const INLINE_IMAGE_TIMEOUT_MS = 120 * 1000;
 export const IMAGE_RESPONSE_FORMATS = ["b64_json", "url"] as const;
 export const IMAGE_URL_KEYS = [
     "url",

@@ -558,7 +558,10 @@ export async function inlineRemoteImageResult(value: string, origin: string, coo
             cache: "no-store",
             signal: controller.signal,
         });
-        if (!response.ok || !response.body) return { dataUrl: url, remoteUrl: fallbackUrl };
+        if (!response.ok || !response.body) {
+            console.warn("[inlineRemoteImageResult] 内部媒体响应异常", response.status, fetchUrl.slice(0, 140));
+            return { dataUrl: url, remoteUrl: fallbackUrl };
+        }
         const contentLength = Number(response.headers.get("content-length") || 0);
         if (contentLength > MAX_INLINE_IMAGE_BYTES) return { dataUrl: url, remoteUrl: fallbackUrl };
         const bytes = Buffer.from(await response.arrayBuffer());
@@ -566,7 +569,8 @@ export async function inlineRemoteImageResult(value: string, origin: string, coo
         const mimeType = response.headers.get("content-type")?.split(";", 1)[0] || "image/png";
         if (!mimeType.startsWith("image/")) return { dataUrl: url, remoteUrl: fallbackUrl };
         return { dataUrl: `data:${mimeType};base64,${bytes.toString("base64")}`, remoteUrl: fallbackUrl };
-    } catch {
+    } catch (error) {
+        console.warn("[inlineRemoteImageResult] 内部媒体下载异常", error instanceof Error ? `${error.name}: ${error.message}` : error, fetchUrl.slice(0, 140));
         return { dataUrl: url, remoteUrl: fallbackUrl };
     } finally {
         clearTimeout(timer);

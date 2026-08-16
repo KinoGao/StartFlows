@@ -37,7 +37,7 @@ type PointsRequest = { model: string; amount: number; usageKind: PointUsageKind 
 type ProxyRequestBody = { body?: BodyInit; pointsPayload?: ArrayBuffer | Record<string, unknown>; bodyDigest: string };
 const MAX_PROXY_BODY_BYTES = 4 * 1024 * 1024;
 const MAX_PROXY_MULTIPART_BYTES = 25 * 1024 * 1024;
-const SYSTEM_MEDIA_TIMEOUT_MS = 30 * 1000;
+const SYSTEM_MEDIA_TIMEOUT_MS = 120 * 1000;
 const MAX_SYSTEM_MEDIA_REDIRECTS = 4;
 
 export async function GET(request: Request, context: RouteContext) {

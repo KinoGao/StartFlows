@@ -18,7 +18,7 @@ const LOG_DATA_FILE = "generation-logs.json";
 const ASSET_ROOT = GENERATION_MEDIA_ROOT;
 const MAX_SERVER_IMAGE_BYTES = 20 * 1024 * 1024;
 const MAX_SERVER_VIDEO_BYTES = 300 * 1024 * 1024;
-const SERVER_ASSET_DOWNLOAD_TIMEOUT_MS = 15000;
+const SERVER_ASSET_DOWNLOAD_TIMEOUT_MS = 120000;
 
 let mutationQueue = Promise.resolve();
 
@@ -98,21 +98,34 @@ export async function writeDataUrlAsset(dataUrl: string, type: GenerationLogKind
 }
 
 export async function writeRemoteAsset(url: string, type: GenerationLogKind, context: GenerationAssetContext): Promise<GenerationLogAsset | null> {
-    if (!(await isSafeRemoteAssetUrl(url))) return null;
+    if (!(await isSafeRemoteAssetUrl(url))) {
+        console.warn("[writeRemoteAsset] 安全检查未通过", url.slice(0, 120));
+        return null;
+    }
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), SERVER_ASSET_DOWNLOAD_TIMEOUT_MS);
     try {
         const response = await fetchSafeOutbound(url, { cache: "no-store", redirect: "manual", signal: controller.signal });
-        if (!response.ok || !response.body) return null;
+        if (!response.ok || !response.body) {
+            console.warn("[writeRemoteAsset] 上游响应异常", response.status, url.slice(0, 120));
+            return null;
+        }
         const contentLength = Number(response.headers.get("content-length") || 0);
         const maxBytes = maxServerAssetBytes(type);
-        if (contentLength > maxBytes) return null;
+        if (contentLength > maxBytes) {
+            console.warn("[writeRemoteAsset] 超过大小上限", contentLength, maxBytes);
+            return null;
+        }
         const bytes = Buffer.from(await response.arrayBuffer());
         if (bytes.length > maxBytes) return null;
         const mimeType = response.headers.get("content-type")?.split(";", 1)[0] || (type === "video" ? "video/mp4" : "image/png");
-        if (!mimeType.startsWith(`${type}/`)) return null;
+        if (!mimeType.startsWith(`${type}/`)) {
+            console.warn("[writeRemoteAsset] 媒体类型不符", mimeType, type);
+            return null;
+        }
         return writeAssetBytes(bytes, mimeType, type, context);
-    } catch {
+    } catch (error) {
+        console.warn("[writeRemoteAsset] 下载异常", error instanceof Error ? `${error.name}: ${error.message}` : error, url.slice(0, 120));
         return null;
     } finally {
         clearTimeout(timer);
