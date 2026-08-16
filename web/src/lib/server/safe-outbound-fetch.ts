@@ -1,6 +1,7 @@
-import { Agent, ProxyAgent, fetch as undiciFetch, type Dispatcher } from "undici";
+import { Agent, fetch as undiciFetch, type Dispatcher } from "undici";
 
 import { GENERATION_TRANSPORT_TIMEOUT_MS } from "@/lib/server/generation-http-lifecycle";
+import { connectProxyFetch } from "@/lib/server/proxy-connect-fetch";
 import { resolveServerProxyUrl } from "@/lib/server/proxy-dispatcher";
 import { isPublicIpAddress, resolveSafeOutboundTarget } from "@/lib/server/outbound-url-security";
 import { toUndiciRequestBody } from "@/lib/server/undici-request-body";
@@ -56,8 +57,11 @@ async function fetchPinned(input: URL, init: RequestInit, options?: { allowCrede
     if (!target) throw new UnsafeOutboundUrlError();
 
     const headers = new Headers(init.headers);
-    const dispatcher = dispatcherFor(target.url, target.address, target.family);
+    const proxyUrl = isPublicIpAddress(target.address) ? resolveServerProxyUrl() : "";
     const body = await toUndiciRequestBody(init.body);
+    // 代理路径走手动 CONNECT 隧道（undici ProxyAgent 小碎片吞吐瓶颈），直连仍用 undici Agent
+    if (proxyUrl) return connectProxyFetch(target.url, { method: init.method, headers, body, signal: init.signal }, proxyUrl);
+    const dispatcher = dispatcherFor(target.url, target.address, target.family);
     return (await undiciFetch(target.url, { ...init, body, headers, dispatcher } as import("undici").RequestInit & { dispatcher: Dispatcher })) as unknown as Response;
 }
 
@@ -78,9 +82,9 @@ function redirectedRequestInit(currentUrl: URL, nextUrl: URL, status: number, in
 }
 
 function dispatcherFor(url: URL, address: string, family: 4 | 6) {
-    const proxyUrl = isPublicIpAddress(address) ? resolveServerProxyUrl() : "";
+    // 代理路径已在 fetchPinned 中分流到 connectProxyFetch，这里只处理直连
     const servername = /^\d+(?:\.\d+){3}$/.test(url.hostname) || url.hostname.includes(":") ? undefined : url.hostname;
-    const key = [proxyUrl, url.protocol, url.host, address, family].join("|");
+    const key = [url.protocol, url.host, address, family].join("|");
     const now = Date.now();
     cleanupDispatchers(now);
     const cached = dispatchers.get(key);
@@ -101,24 +105,15 @@ function dispatcherFor(url: URL, address: string, family: 4 | 6) {
             callback(null, address, family);
         },
     };
-    const dispatcher: Dispatcher = proxyUrl
-        ? new ProxyAgent({
-              uri: proxyUrl,
-              requestTls: servername ? { servername } : undefined,
-              connectTimeout: 10_000,
-              connections: 8,
-              headersTimeout: GENERATION_TRANSPORT_TIMEOUT_MS,
-              bodyTimeout: GENERATION_TRANSPORT_TIMEOUT_MS,
-          })
-        : new Agent({
-              connect,
-              connectTimeout: 10_000,
-              connections: 8,
-              keepAliveTimeout: 10_000,
-              keepAliveMaxTimeout: 60_000,
-              headersTimeout: GENERATION_TRANSPORT_TIMEOUT_MS,
-              bodyTimeout: GENERATION_TRANSPORT_TIMEOUT_MS,
-          });
+    const dispatcher: Dispatcher = new Agent({
+        connect,
+        connectTimeout: 10_000,
+        connections: 8,
+        keepAliveTimeout: 10_000,
+        keepAliveMaxTimeout: 60_000,
+        headersTimeout: GENERATION_TRANSPORT_TIMEOUT_MS,
+        bodyTimeout: GENERATION_TRANSPORT_TIMEOUT_MS,
+    });
     dispatchers.set(key, { dispatcher, lastUsedAt: now });
     cleanupDispatchers(now);
     return dispatcher;
