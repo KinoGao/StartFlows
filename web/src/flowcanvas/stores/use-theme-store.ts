@@ -1,19 +1,6 @@
-import { create } from "zustand";
-import { persist } from "zustand/middleware";
-
+/**
+ * FlowCanvas 主题统一并入 VOZEB 主题 store（单主题系统，画布跟随全局明暗切换）。
+ * 接口与 FlowCanvas 原 store 一致（theme/setTheme）。
+ */
+export { useThemeStore } from "@/stores/use-theme-store";
 export type ThemeName = "light" | "dark";
-
-type ThemeStore = {
-    theme: ThemeName;
-    setTheme: (theme: ThemeName) => void;
-};
-
-export const useThemeStore = create<ThemeStore>()(
-    persist(
-        (set) => ({
-            theme: "dark",
-            setTheme: (theme) => set({ theme }),
-        }),
-        { name: "infinite-canvas:theme_store" },
-    ),
-);
