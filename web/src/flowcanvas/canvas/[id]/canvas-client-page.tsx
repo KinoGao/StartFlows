@@ -5132,9 +5132,9 @@ function LeaferCanvasPage() {
     );
 
     const handleScriptBeatAdd = useCallback(
-        (scriptNode: CanvasNodeData, index: number) => {
+        (scriptNode: CanvasNodeData, index: number, act?: string) => {
             const next = [...(scriptNode.metadata?.scriptBeats ?? [])];
-            next.splice(index + 1, 0, { id: `beat-${Date.now()}`, title: `分镜 ${next.length + 1}`, content: "", prompt: "" });
+            next.splice(index + 1, 0, { id: `beat-${Date.now()}`, title: `分镜 ${next.length + 1}`, content: "", prompt: "", ...(act ? { act } : {}) });
             handleConfigNodeChange(scriptNode.id, { scriptBeats: next });
         },
         [handleConfigNodeChange],
@@ -6109,7 +6109,7 @@ function LeaferCanvasPage() {
                         onImportUpstream={() => void handleImportScriptUpstream(scriptStudioNode)}
                         hasUpstreamText={Boolean(upstreamScriptText(scriptStudioNode))}
                         onBeatChange={(beat) => handleScriptBeatChange(scriptStudioNode, beat)}
-                        onBeatAdd={(index) => handleScriptBeatAdd(scriptStudioNode, index)}
+                        onBeatAdd={(index, act) => handleScriptBeatAdd(scriptStudioNode, index, act)}
                         onBeatRemove={(index) => handleScriptBeatRemove(scriptStudioNode, index)}
                         onBeatMove={(index, direction) => handleScriptBeatMove(scriptStudioNode, index, direction)}
                         onAssetChange={(asset) => handleScriptAssetChange(scriptStudioNode, asset)}

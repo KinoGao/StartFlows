@@ -1,6 +1,6 @@
-import { Fragment, useMemo, useState } from "react";
-import { Button, Dropdown, Select } from "antd";
-import { Clapperboard, Download, Image as ImageIcon, ListOrdered, Plus, Sparkles, Upload, Workflow, X } from "lucide-react";
+import { useMemo, useState } from "react";
+import { AutoComplete, Button, Dropdown, Select } from "antd";
+import { ChevronDown, ChevronRight, Clapperboard, Download, Image as ImageIcon, ListOrdered, Plus, Sparkles, Upload, Workflow, X } from "lucide-react";
 
 import type { canvasThemes } from "@/flowcanvas/lib/canvas-theme";
 import { buildScriptBeats } from "../utils/canvas-script-beats";
@@ -9,20 +9,26 @@ import type { CanvasNodeData, CanvasNodeMetadata, CanvasScriptAct, CanvasScriptA
 type Theme = (typeof canvasThemes)[keyof typeof canvasThemes];
 export type ScriptOutputState = "idle" | "loading" | "success" | "error";
 
-const SCRIPT_OUTPUT_STATUS_MARK = {
-    idle: "—",
-    loading: "生成中…",
-    success: "✓",
-    error: "✗",
+const SCRIPT_OUTPUT_STATUS = {
+    idle: { label: "待生成", color: "#8a8f98" },
+    loading: { label: "生成中", color: "#3b82f6" },
+    success: { label: "已完成", color: "#22c55e" },
+    error: { label: "失败", color: "#ef4444" },
 } as const;
+
+function statusTagStyle(color: string) {
+    return { color, background: `${color}1f`, border: `1px solid ${color}59` };
+}
 
 function stopCanvasPanelInteraction(event: { stopPropagation(): void }) {
     event.stopPropagation();
 }
 
+const ACT_UNASSIGNED = "__unassigned__";
+
 /**
- * 脚本节点全屏工作台（对齐导演台模式）：剧本编辑 + 资产（人物/道具/场景，可生成资产图）
- * + 分镜表（逐镜微调、逐镜生成）。生成什么就从脚本节点输出什么，工作台内可见生成状态。
+ * 脚本节点全屏工作台（对齐短剧分镜脚本模式）：左侧剧本 + 资产，右侧按幕分组的分镜卡片，
+ * 折叠预览 / 展开行内编辑，逐镜生成状态徽章，幕可新增、改名、定向插入分镜。
  */
 export function ScriptDeskStudio({
     node,
@@ -54,7 +60,7 @@ export function ScriptDeskStudio({
     onImportUpstream: () => void;
     hasUpstreamText: boolean;
     onBeatChange: (beat: CanvasScriptBeat) => void;
-    onBeatAdd: (index: number) => void;
+    onBeatAdd: (index: number, act?: string) => void;
     onBeatRemove: (index: number) => void;
     onBeatMove: (index: number, direction: -1 | 1) => void;
     onAssetChange: (asset: CanvasScriptAsset) => void;
@@ -70,24 +76,14 @@ export function ScriptDeskStudio({
     const acts = node.metadata?.scriptActs ?? [];
     const assets = node.metadata?.scriptAssets ?? [];
     const fieldStyle = { background: theme.node.fill, borderColor: theme.toolbar.border, color: theme.node.text };
-    const [editingIndex, setEditingIndex] = useState<number | null>(null);
-    const [draft, setDraft] = useState<CanvasScriptBeat | null>(null);
+    const [expandedBeatId, setExpandedBeatId] = useState<string | null>(null);
+    const [actTitleDrafts, setActTitleDrafts] = useState<Record<string, string>>({});
     const [newAsset, setNewAsset] = useState<{ kind: CanvasScriptAsset["kind"]; name: string }>({ kind: "character", name: "" });
     const updateBody = (scriptBody: string) => onChange({ scriptBody, content: scriptBody, status: scriptBody.trim() ? "success" : "idle" });
     // 正文含明确镜行编号（SH/SC/镜 N）时可本地重拆，不消耗模型
     const canReparse = /(^|\n)\s*(SH|SC|镜)\s*\d+/i.test(body);
 
-    const startEdit = (beat: CanvasScriptBeat, index: number) => {
-        setEditingIndex(index);
-        setDraft({ ...beat });
-    };
-    const saveEdit = () => {
-        if (draft) onBeatChange(draft);
-        setEditingIndex(null);
-        setDraft(null);
-    };
-
-    // 按幕分组：有幕信息时先显示幕标题行，再渲染该幕的分镜；无幕信息时全部归入「未分幕」。
+    // 按幕分组：有幕信息时先显示幕标题，再渲染该幕的分镜；无幕信息时全部归入「未分幕」。
     // 幕匹配先做精确匹配，失败再做归一化/前缀容错（如 beat 写「第一幕」而 acts 标题是「第一幕《探测」」）。
     const actGroups = useMemo(() => {
         const groups: Array<{ actTitle: string; act?: (typeof acts)[number]; beats: Array<{ beat: CanvasScriptBeat; index: number }> }> = [];
@@ -122,8 +118,142 @@ export function ScriptDeskStudio({
         });
         return groups;
     }, [acts, beats]);
-    const patchDraft = (patch: Partial<CanvasScriptBeat>) => setDraft((current) => (current ? { ...current, ...patch } : current));
     const assetLabel = (kind: CanvasScriptAsset["kind"]) => (kind === "character" ? "人物" : kind === "scene" ? "场景" : "道具");
+    const assetOptions = (kind: CanvasScriptAsset["kind"]) => assets.filter((asset) => asset.kind === kind && asset.name.trim()).map((asset) => ({ value: asset.name }));
+    const actSelectOptions = useMemo(() => {
+        const options = [{ value: ACT_UNASSIGNED, label: "未分幕" }, ...acts.map((act) => ({ value: act.title, label: act.title }))];
+        const known = new Set(options.map((option) => option.value));
+        beats.forEach((beat) => {
+            const title = beat.act?.trim();
+            if (title && !known.has(title)) {
+                known.add(title);
+                options.push({ value: title, label: title });
+            }
+        });
+        return options;
+    }, [acts, beats]);
+
+    const addAct = () => {
+        onChange({ scriptActs: [...acts, { id: `act-${Date.now()}`, title: `第${acts.length + 1}幕` }] });
+    };
+    const removeAct = (act: CanvasScriptAct) => {
+        onChange({
+            scriptActs: acts.filter((item) => item.id !== act.id),
+            scriptBeats: beats.map((beat) => (beat.act === act.title ? { ...beat, act: undefined } : beat)),
+        });
+    };
+    const renameAct = (act: CanvasScriptAct, nextTitleRaw: string) => {
+        const nextTitle = nextTitleRaw.trim();
+        setActTitleDrafts((current) => {
+            const next = { ...current };
+            delete next[act.id];
+            return next;
+        });
+        if (!nextTitle || nextTitle === act.title) return;
+        onChange({
+            scriptActs: acts.map((item) => (item.id === act.id ? { ...item, title: nextTitle } : item)),
+            scriptBeats: beats.map((beat) => (beat.act === act.title ? { ...beat, act: nextTitle } : beat)),
+        });
+    };
+    const patchBeat = (beat: CanvasScriptBeat, patch: Partial<CanvasScriptBeat>) => onBeatChange({ ...beat, ...patch });
+
+    const renderBeatCard = (beat: CanvasScriptBeat, index: number) => {
+        const state = outputStates[beat.id] || "idle";
+        const status = SCRIPT_OUTPUT_STATUS[state];
+        const expanded = expandedBeatId === beat.id;
+        return (
+            <div key={beat.id} className="rounded-xl border" style={{ borderColor: theme.toolbar.border, background: theme.node.fill }}>
+                <div className="flex items-center gap-2 px-3 pt-2.5">
+                    <span className="flex size-6 shrink-0 items-center justify-center rounded-md text-[11px] font-semibold" style={{ background: theme.ui.controlFill, color: theme.node.muted }}>
+                        {index + 1}
+                    </span>
+                    <input
+                        className="h-7 min-w-0 flex-1 rounded bg-transparent px-1 text-[13px] font-medium outline-none placeholder:opacity-35"
+                        value={beat.title}
+                        placeholder="分镜标题"
+                        onChange={(event) => patchBeat(beat, { title: event.target.value })}
+                    />
+                    <span className="shrink-0 rounded-full px-2 py-0.5 text-[11px]" style={statusTagStyle(status.color)}>
+                        {status.label}
+                    </span>
+                    {beat.shotType ? <span className="shrink-0 rounded px-1.5 py-0.5 text-[11px] opacity-70" style={{ background: theme.ui.controlFill }}>{beat.shotType}</span> : null}
+                    {beat.duration ? <span className="shrink-0 rounded px-1.5 py-0.5 text-[11px] opacity-70" style={{ background: theme.ui.controlFill }}>{beat.duration}</span> : null}
+                    <Dropdown
+                        menu={{
+                            items: [
+                                { key: "video", label: "视频节点", icon: <Clapperboard className="size-3.5" /> },
+                                { key: "comfyui", label: "ComfyUI 节点", icon: <Workflow className="size-3.5" /> },
+                            ],
+                            onClick: ({ key }) => onGenerateBeat(beat, index, key as "video" | "comfyui"),
+                        }}
+                        disabled={!beat.content.trim() && !beat.title.trim()}
+                    >
+                        <Button size="small" type="primary" ghost>
+                            生成
+                        </Button>
+                    </Dropdown>
+                    <button
+                        type="button"
+                        className="shrink-0 opacity-55 transition hover:opacity-100"
+                        onClick={() => setExpandedBeatId(expanded ? null : beat.id)}
+                        aria-label={expanded ? "收起分镜" : "展开分镜"}
+                    >
+                        {expanded ? <ChevronDown className="size-4" /> : <ChevronRight className="size-4" />}
+                    </button>
+                </div>
+                {beat.content ? <div className="mt-1 line-clamp-2 px-3 text-xs leading-5 opacity-60">{beat.content}</div> : null}
+                {beat.dialogue ? <div className="mt-0.5 truncate px-3 text-[11px] opacity-50">台词：{beat.dialogue}</div> : null}
+                <div className="mt-1.5 flex items-center gap-3 px-3 pb-2 text-[11px]">
+                    <button type="button" className="opacity-45 transition hover:opacity-100 disabled:opacity-20" disabled={index === 0} onClick={() => onBeatMove(index, -1)}>
+                        上移
+                    </button>
+                    <button type="button" className="opacity-45 transition hover:opacity-100 disabled:opacity-20" disabled={index === beats.length - 1} onClick={() => onBeatMove(index, 1)}>
+                        下移
+                    </button>
+                    <button type="button" className="opacity-45 transition hover:opacity-100" onClick={() => onBeatAdd(index, beat.act)}>
+                        在下方插入
+                    </button>
+                    <button type="button" className="opacity-45 transition hover:opacity-100" onClick={() => onBeatRemove(index)}>
+                        删除
+                    </button>
+                    {beat.camera ? <span className="ml-auto truncate opacity-40">{beat.camera}</span> : null}
+                </div>
+                {expanded ? (
+                    <div className="space-y-2 border-t px-3 py-2.5" style={{ borderColor: theme.toolbar.border }}>
+                        <textarea
+                            className="thin-scrollbar h-20 w-full resize-none rounded-lg border px-2.5 py-1.5 text-xs leading-5 outline-none placeholder:opacity-35"
+                            value={beat.content}
+                            placeholder="画面描述：主体、动作、环境、氛围"
+                            onChange={(event) => patchBeat(beat, { content: event.target.value })}
+                            style={fieldStyle}
+                        />
+                        <input
+                            className="h-8 w-full rounded-lg border px-2.5 text-xs outline-none placeholder:opacity-35"
+                            value={beat.dialogue || ""}
+                            placeholder="台词 / 旁白（无则留空）"
+                            onChange={(event) => patchBeat(beat, { dialogue: event.target.value })}
+                            style={fieldStyle}
+                        />
+                        <div className="grid grid-cols-3 gap-2">
+                            <input className="h-8 rounded-lg border px-2.5 text-xs outline-none placeholder:opacity-35" value={beat.shotType || ""} placeholder="景别（如 特写）" onChange={(event) => patchBeat(beat, { shotType: event.target.value })} style={fieldStyle} />
+                            <input className="h-8 rounded-lg border px-2.5 text-xs outline-none placeholder:opacity-35" value={beat.duration || ""} placeholder="时长（如 5s）" onChange={(event) => patchBeat(beat, { duration: event.target.value })} style={fieldStyle} />
+                            <input className="h-8 rounded-lg border px-2.5 text-xs outline-none placeholder:opacity-35" value={beat.camera || ""} placeholder="机位 / 运镜" onChange={(event) => patchBeat(beat, { camera: event.target.value })} style={fieldStyle} />
+                        </div>
+                        <div className="grid grid-cols-3 gap-2">
+                            <AutoComplete size="small" value={beat.character || ""} options={assetOptions("character")} placeholder="角色（引用人物资产）" onChange={(value) => patchBeat(beat, { character: value })} />
+                            <AutoComplete size="small" value={beat.scene || ""} options={assetOptions("scene")} placeholder="场景（引用场景资产）" onChange={(value) => patchBeat(beat, { scene: value })} />
+                            <Select
+                                size="small"
+                                value={beat.act?.trim() ? beat.act.trim() : ACT_UNASSIGNED}
+                                options={actSelectOptions}
+                                onChange={(value) => patchBeat(beat, { act: value === ACT_UNASSIGNED ? undefined : value })}
+                            />
+                        </div>
+                    </div>
+                ) : null}
+            </div>
+        );
+    };
 
     return (
         <div className="fixed inset-0 z-[220] flex flex-col" style={{ background: theme.node.panel, color: theme.node.text }} data-canvas-no-zoom>
@@ -169,9 +299,9 @@ export function ScriptDeskStudio({
                         <span className="mb-1 block text-xs opacity-55">一句话梗概</span>
                         <input className="h-9 w-full rounded-lg border px-3 text-sm outline-none placeholder:opacity-35" value={node.metadata?.scriptLogline || ""} placeholder="角色、目标、冲突和转折" onChange={(event) => onChange({ scriptLogline: event.target.value })} style={fieldStyle} />
                     </label>
-                    <label className="nodrag nopan block min-w-0" onMouseDownCapture={stopCanvasPanelInteraction} onPointerDownCapture={stopCanvasPanelInteraction} onClickCapture={(event) => event.stopPropagation()}>
+                    <label className="nodrag nopan flex min-h-0 flex-1 flex-col" onMouseDownCapture={stopCanvasPanelInteraction} onPointerDownCapture={stopCanvasPanelInteraction} onClickCapture={(event) => event.stopPropagation()}>
                         <span className="mb-1 block text-xs opacity-55">剧本正文</span>
-                        <textarea className="thin-scrollbar h-52 w-full resize-none rounded-lg border px-3 py-2 text-sm leading-6 outline-none placeholder:opacity-35" value={body} placeholder="按幕、段落或镜头写下脚本内容" onChange={(event) => updateBody(event.target.value)} style={fieldStyle} />
+                        <textarea className="thin-scrollbar min-h-40 w-full flex-1 resize-none rounded-lg border px-3 py-2 text-sm leading-6 outline-none placeholder:opacity-35" value={body} placeholder="按幕、段落或镜头写下脚本内容" onChange={(event) => updateBody(event.target.value)} style={fieldStyle} />
                     </label>
                     <div className="text-[11px] leading-5 opacity-45">连接上游文本节点可自动读取剧本；AI 拆解按「人物 → 道具 → 场景」提取资产后再拆分镜。</div>
 
@@ -183,6 +313,7 @@ export function ScriptDeskStudio({
                         <div className="thin-scrollbar max-h-72 space-y-2 overflow-y-auto pr-1">
                             {assets.map((asset) => {
                                 const state = outputStates[asset.id] || "idle";
+                                const status = SCRIPT_OUTPUT_STATUS[state];
                                 return (
                                     <div key={asset.id} className="rounded-xl border p-2.5" style={{ borderColor: theme.toolbar.border, background: theme.node.fill }}>
                                         <div className="flex items-center gap-2">
@@ -190,8 +321,8 @@ export function ScriptDeskStudio({
                                                 {assetLabel(asset.kind)}
                                             </span>
                                             <input className="h-7 w-28 min-w-0 rounded border px-2 text-xs outline-none" value={asset.name} placeholder="名称" onChange={(event) => onAssetChange({ ...asset, name: event.target.value })} style={fieldStyle} />
-                                            <span className="shrink-0 text-xs" style={{ color: state === "success" ? theme.connection.activeColor : state === "loading" ? theme.ui.accent : theme.node.muted }}>
-                                                {SCRIPT_OUTPUT_STATUS_MARK[state]}
+                                            <span className="shrink-0 rounded-full px-2 py-0.5 text-[10px]" style={statusTagStyle(status.color)}>
+                                                {status.label}
                                             </span>
                                             <button type="button" className="shrink-0 text-xs opacity-50 transition hover:opacity-100" onClick={() => onAssetRemove(asset.id)}>
                                                 删除
@@ -233,118 +364,56 @@ export function ScriptDeskStudio({
 
                 <div className="flex min-h-0 flex-col p-4">
                     <div className="mb-2 flex items-center justify-between">
-                        <div className="text-sm font-medium opacity-70">分镜表</div>
-                        <div className="text-xs opacity-45">{beats.length} 个分镜 · 逐镜点「生成」选视频 / ComfyUI 节点，或「导出」批量创建节点</div>
+                        <div className="text-sm font-medium opacity-70">分镜</div>
+                        <div className="flex items-center gap-3">
+                            <div className="text-xs opacity-45">{acts.length} 幕 · {beats.length} 个分镜 · 逐镜点「生成」，或顶部「导出」批量创建节点</div>
+                            <Button size="small" icon={<Plus className="size-3.5" />} onClick={addAct}>
+                                新增幕
+                            </Button>
+                        </div>
                     </div>
-                    <div className="thin-scrollbar min-h-0 flex-1 overflow-auto rounded-xl border" style={{ borderColor: theme.toolbar.border, background: theme.node.fill }}>
-                        <table className="w-full border-collapse text-left text-xs">
-                            <thead>
-                                <tr className="opacity-50" style={{ borderBottom: `1px solid ${theme.toolbar.border}` }}>
-                                    <th className="w-8 px-3 py-2 font-medium">#</th>
-                                    <th className="w-16 px-2 py-2 font-medium">景别</th>
-                                    <th className="w-14 px-2 py-2 font-medium">时长</th>
-                                    <th className="min-w-56 px-2 py-2 font-medium">画面描述</th>
-                                    <th className="w-40 px-2 py-2 font-medium">角色 / 场景 / 机位</th>
-                                    <th className="w-16 px-2 py-2 font-medium">状态</th>
-                                    <th className="w-44 px-3 py-2 font-medium">操作</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {actGroups.map((group) => (
-                                    <Fragment key={group.actTitle}>
-                                        <tr style={{ background: theme.ui.controlFill }}>
-                                            <td colSpan={7} className="px-3 py-1.5 font-semibold">
-                                                <span className="opacity-80">{group.actTitle}</span>
-                                                {group.act?.name ? <span className="ml-2 opacity-60">{group.act.name}</span> : null}
-                                                {group.act?.duration ? <span className="ml-2 text-[11px] opacity-45">{group.act.duration}</span> : null}
-                                                <span className="ml-2 text-[11px] opacity-45">{group.beats.length} 镜</span>
-                                                {group.act?.summary ? <div className="mt-0.5 text-[11px] leading-4 opacity-45">{group.act.summary}</div> : null}
-                                            </td>
-                                        </tr>
-                                        {group.beats.map(({ beat, index }, groupIndex) => {
-                                            const state = outputStates[beat.id] || "idle";
-                                            const showSceneHeading = Boolean(beat.sceneHeading) && beat.sceneHeading !== group.beats[groupIndex - 1]?.beat.sceneHeading;
-                                            return (
-                                                <Fragment key={beat.id}>
-                                                    {showSceneHeading ? (
-                                                        <tr style={{ borderTop: `1px solid ${theme.toolbar.border}` }}>
-                                                            <td colSpan={7} className="px-3 py-1 text-[11px] opacity-50">
-                                                                {beat.sceneHeading}
-                                                            </td>
-                                                        </tr>
-                                                    ) : null}
-                                                    <tr className="align-top" style={{ borderTop: `1px solid ${theme.toolbar.border}` }}>
-                                                        <td className="px-3 py-2 opacity-55">{index + 1}</td>
-                                                        <td className="px-2 py-2">{beat.shotType || "—"}</td>
-                                                        <td className="px-2 py-2">{beat.duration || "—"}</td>
-                                                        <td className="px-2 py-2">
-                                                            <div className="font-medium">{beat.title}</div>
-                                                            <div className="mt-0.5 line-clamp-2 leading-5 opacity-60">{beat.content}</div>
-                                                        </td>
-                                                        <td className="px-2 py-2">
-                                                            <div className="truncate opacity-70">{beat.character || "—"}</div>
-                                                            <div className="mt-0.5 truncate opacity-50">{beat.scene || "—"}</div>
-                                                            <div className="mt-0.5 truncate opacity-50">{beat.camera || "—"}</div>
-                                                        </td>
-                                                        <td className="px-2 py-2" style={{ color: state === "success" ? theme.connection.activeColor : state === "loading" ? theme.ui.accent : state === "error" ? "#ef4444" : theme.node.muted }}>
-                                                            {SCRIPT_OUTPUT_STATUS_MARK[state]}
-                                                        </td>
-                                                        <td className="px-3 py-2">
-                                                            <div className="flex flex-wrap items-center gap-1">
-                                                                <Dropdown
-                                                                    menu={{
-                                                                        items: [
-                                                                            { key: "video", label: "视频节点", icon: <Clapperboard className="size-3.5" /> },
-                                                                            { key: "comfyui", label: "ComfyUI 节点", icon: <Workflow className="size-3.5" /> },
-                                                                        ],
-                                                                        onClick: ({ key }) => onGenerateBeat(beat, index, key as "video" | "comfyui"),
-                                                                    }}
-                                                                    disabled={!beat.content.trim() && !beat.title.trim()}
-                                                                >
-                                                                    <Button size="small" type="primary" ghost>
-                                                                        生成
-                                                                    </Button>
-                                                                </Dropdown>
-                                                                <Button size="small" onClick={() => startEdit(beat, index)}>
-                                                                    编辑
-                                                                </Button>
-                                                                <button type="button" className="px-0.5 opacity-50 transition hover:opacity-100 disabled:opacity-20" disabled={index === 0} onClick={() => onBeatMove(index, -1)} aria-label="上移">↑</button>
-                                                                <button type="button" className="px-0.5 opacity-50 transition hover:opacity-100 disabled:opacity-20" disabled={index === beats.length - 1} onClick={() => onBeatMove(index, 1)} aria-label="下移">↓</button>
-                                                                <button type="button" className="px-0.5 opacity-50 transition hover:opacity-100" onClick={() => onBeatRemove(index)} aria-label="删除分镜">删</button>
-                                                            </div>
-                                                        </td>
-                                                    </tr>
-                                                    {editingIndex === index && draft ? (
-                                                        <tr style={{ borderTop: `1px solid ${theme.toolbar.border}` }}>
-                                                            <td colSpan={7} className="px-3 py-2">
-                                                                <div className="space-y-1.5">
-                                                                    <input className="h-7 w-full rounded border px-2 text-xs outline-none" value={draft.title} placeholder="分镜标题" onChange={(event) => patchDraft({ title: event.target.value })} style={fieldStyle} />
-                                                                    <textarea className="h-16 w-full resize-none rounded border px-2 py-1 text-xs leading-5 outline-none" value={draft.content} placeholder="画面描述" onChange={(event) => patchDraft({ content: event.target.value })} style={fieldStyle} />
-                                                                    <div className="grid grid-cols-3 gap-1.5">
-                                                                        <input className="h-7 rounded border px-2 text-xs outline-none" value={draft.shotType || ""} placeholder="景别" onChange={(event) => patchDraft({ shotType: event.target.value })} style={fieldStyle} />
-                                                                        <input className="h-7 rounded border px-2 text-xs outline-none" value={draft.duration || ""} placeholder="时长 3s" onChange={(event) => patchDraft({ duration: event.target.value })} style={fieldStyle} />
-                                                                        <input className="h-7 rounded border px-2 text-xs outline-none" value={draft.camera || ""} placeholder="机位" onChange={(event) => patchDraft({ camera: event.target.value })} style={fieldStyle} />
-                                                                    </div>
-                                                                    <div className="grid grid-cols-2 gap-1.5">
-                                                                        <input className="h-7 rounded border px-2 text-xs outline-none" value={draft.character || ""} placeholder="角色（引用资产名）" onChange={(event) => patchDraft({ character: event.target.value })} style={fieldStyle} />
-                                                                        <input className="h-7 rounded border px-2 text-xs outline-none" value={draft.scene || ""} placeholder="场景（引用资产名）" onChange={(event) => patchDraft({ scene: event.target.value })} style={fieldStyle} />
-                                                                    </div>
-                                                                    <input className="h-7 w-full rounded border px-2 text-xs outline-none" value={draft.dialogue || ""} placeholder="台词（无则留空）" onChange={(event) => patchDraft({ dialogue: event.target.value })} style={fieldStyle} />
-                                                                    <div className="flex justify-end gap-2">
-                                                                        <Button size="small" onClick={() => setEditingIndex(null)}>取消</Button>
-                                                                        <Button size="small" type="primary" onClick={saveEdit}>保存</Button>
-                                                                    </div>
-                                                                </div>
-                                                            </td>
-                                                        </tr>
-                                                    ) : null}
-                                                </Fragment>
-                                            );
-                                        })}
-                                    </Fragment>
-                                ))}
-                            </tbody>
-                        </table>
+                    <div className="thin-scrollbar min-h-0 flex-1 space-y-3 overflow-y-auto pr-1">
+                        {actGroups.map((group) => (
+                            <div key={group.actTitle} className="space-y-2">
+                                <div className="flex items-center gap-2 rounded-xl border px-3 py-2" style={{ borderColor: theme.toolbar.border, background: theme.ui.controlFill }}>
+                                    {group.act ? (
+                                        <input
+                                            className="h-7 min-w-0 flex-1 rounded bg-transparent px-1 text-[13px] font-semibold outline-none"
+                                            value={actTitleDrafts[group.act.id] ?? group.act.title}
+                                            onChange={(event) => setActTitleDrafts((current) => ({ ...current, [group.act!.id]: event.target.value }))}
+                                            onBlur={(event) => renameAct(group.act!, event.target.value)}
+                                            onKeyDown={(event) => {
+                                                if (event.key === "Enter") (event.target as HTMLInputElement).blur();
+                                            }}
+                                            aria-label="幕标题"
+                                        />
+                                    ) : (
+                                        <span className="min-w-0 flex-1 px-1 text-[13px] font-semibold opacity-80">{group.actTitle}</span>
+                                    )}
+                                    {group.act?.duration ? <span className="shrink-0 text-[11px] opacity-45">{group.act.duration}</span> : null}
+                                    <span className="shrink-0 text-[11px] opacity-45">{group.beats.length} 镜</span>
+                                    <button type="button" className="shrink-0 text-[11px] opacity-50 transition hover:opacity-100" onClick={() => onBeatAdd(group.beats.length ? group.beats[group.beats.length - 1].index : beats.length - 1, group.act?.title)}>
+                                        ＋ 分镜
+                                    </button>
+                                    {group.act ? (
+                                        <button type="button" className="shrink-0 text-[11px] opacity-50 transition hover:opacity-100" onClick={() => removeAct(group.act!)}>
+                                            删除幕
+                                        </button>
+                                    ) : null}
+                                </div>
+                                {group.act?.summary ? <div className="px-3 text-[11px] leading-4 opacity-45">{group.act.summary}</div> : null}
+                                {group.beats.map(({ beat, index }, groupIndex) => {
+                                    const showSceneHeading = Boolean(beat.sceneHeading) && beat.sceneHeading !== group.beats[groupIndex - 1]?.beat.sceneHeading;
+                                    return (
+                                        <div key={beat.id} className="space-y-2">
+                                            {showSceneHeading ? <div className="px-3 pt-1 text-[11px] opacity-50">{beat.sceneHeading}</div> : null}
+                                            {renderBeatCard(beat, index)}
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        ))}
+                        {!beats.length ? <div className="rounded-xl border border-dashed px-4 py-8 text-center text-xs opacity-45" style={{ borderColor: theme.toolbar.border }}>还没有分镜。先写剧本，再点顶部「AI 拆解」，或手动新增分镜。</div> : null}
                     </div>
                     <div className="mt-2">
                         <Button size="small" block icon={<Plus className="size-3.5" />} onClick={() => onBeatAdd(beats.length - 1)}>
