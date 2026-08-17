@@ -631,6 +631,19 @@ export function LeaferCanvas({
     useEffect(() => {
         const container = leaferContainerRef.current;
         if (!container) return;
+        // Leafer 编辑器在 document 上监听 keydown 做方向键微调（onArrow），且不判断事件目标；
+        // 输入框 / contenteditable 里的方向键会被它当成移动节点，导致 Composer 关闭、节点错位。
+        // 必须在 App 创建之前注册（同节点同阶段按注册顺序触发），用 stopImmediatePropagation 拦截。
+        const blockEditorArrowWhenTyping = (event: KeyboardEvent) => {
+            const target = event.target;
+            const isEditable =
+                target instanceof HTMLInputElement ||
+                target instanceof HTMLTextAreaElement ||
+                target instanceof HTMLSelectElement ||
+                (target instanceof HTMLElement && target.isContentEditable);
+            if (isEditable) event.stopImmediatePropagation();
+        };
+        document.addEventListener("keydown", blockEditorArrowWhenTyping);
         const app = new LUI.App({
             view: container,
             start: true,
@@ -834,6 +847,7 @@ export function LeaferCanvas({
             app.destroy();
             leaferRef.current = null;
             editorRef.current = null;
+            document.removeEventListener("keydown", blockEditorArrowWhenTyping);
         };
     }, [beginEditorTransform, drawBackground, flushEditorTransform, getNodeElement, presentLeaferViewport, refreshNodeInteractionVisual, reportCanvasReady, syncEditorViewport, syncSkyOverlays]);
 
