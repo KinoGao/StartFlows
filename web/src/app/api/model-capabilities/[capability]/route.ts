@@ -35,7 +35,10 @@ export async function GET(request: Request, context: { params: Promise<{ capabil
         const requestAdapter = profile.requestAdapter || channel.advancedConfig?.protocol || channel.apiFormat;
         const modelPatterns = profile.modelPatterns?.length ? profile.modelPatterns : [binding.upstreamModel];
         if (kind === "video") {
-            const modes = profile.generationModes?.length ? profile.generationModes : videoModesFromProfile(profile, channel.advancedConfig?.protocol);
+            // 显式 generationModes 与支持标记（supportsReferenceVideo 等）取并集：
+            // 后台常只填两种模式但打开了全能参考等开关，单靠显式列表会把已声明能力吞掉
+            const derivedModes = videoModesFromProfile(profile, channel.advancedConfig?.protocol);
+            const modes = profile.generationModes?.length ? Array.from(new Set([...profile.generationModes, ...derivedModes])) : derivedModes;
             const durations = profile.durations?.length ? profile.durations : durationRangeFromProfile(profile);
             data.push({
                 id: model.id,
