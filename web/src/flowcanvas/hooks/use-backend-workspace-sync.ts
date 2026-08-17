@@ -59,6 +59,7 @@ export function useBackendWorkspaceSync() {
     const lastPushedVersionRef = useRef({ config: -1, projects: -1, assets: -1 });
     const pushingRef = useRef({ config: false, projects: false, assets: false });
     const pushFailuresRef = useRef(new Set<SyncKind>());
+    const conflictNotifiedRef = useRef(false);
     const missingLegacyStorageKeysRef = useRef(new Set<string>());
     const bootstrapFailureNotifiedRef = useRef(false);
     const [bootstrapRetryTick, setBootstrapRetryTick] = useState(0);
@@ -86,6 +87,14 @@ export function useBackendWorkspaceSync() {
             // must not unmount the live canvas and discard unsaved in-memory edits.
             setWorkspaceState("ready", errorMessage);
             console.error("[backend-sync] " + kind + " push failed", error);
+            if (error instanceof ApiError && error.status === 409) {
+                // 版本冲突无法靠重试自愈（适配层已刷新版本重试过一次），提示用户刷新，不再循环重试刷屏。
+                if (!conflictNotifiedRef.current) {
+                    conflictNotifiedRef.current = true;
+                    message.warning(errorMessage);
+                }
+                return;
+            }
             schedulePushRetry();
         },
         [clearSession, message, schedulePushRetry, setWorkspaceState],
@@ -217,6 +226,7 @@ export function useBackendWorkspaceSync() {
         readyRef.current = false;
         applyingRef.current = true;
         pushFailuresRef.current.clear();
+        conflictNotifiedRef.current = false;
         missingLegacyStorageKeysRef.current.clear();
         setWorkspaceState("loading");
         replaceProjects([], {});

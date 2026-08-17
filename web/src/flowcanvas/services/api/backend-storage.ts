@@ -110,7 +110,20 @@ export async function pushBackendProjects(_token: string, projects: CanvasProjec
                 headers: jsonHeaders,
                 body: JSON.stringify({ project, expectedUpdatedAt }),
             }),
-        );
+        ).catch(async (error) => {
+            // 版本冲突（其他页面/服务端写入过）：刷新一次服务端版本后用当前画布快照重试。
+            // 仍然冲突则交给上层提示用户刷新，不再静默循环重试。
+            if (!(error instanceof ApiError) || error.status !== 409) throw error;
+            const fresh = await fetchProjectFull(project.id);
+            serverUpdatedAtById.set(project.id, fresh.updatedAt);
+            return readApi<{ project: CanvasProject }>(
+                await fetch(apiUrl(`/api/canvas/projects/${encodeURIComponent(project.id)}`), {
+                    method: "PATCH",
+                    headers: jsonHeaders,
+                    body: JSON.stringify({ project, expectedUpdatedAt: fresh.updatedAt }),
+                }),
+            );
+        });
         serverUpdatedAtById.set(project.id, saved.project.updatedAt);
     }
 }
