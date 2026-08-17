@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { App, Button, Checkbox, Form, Input, InputNumber, Modal, Select, Switch } from "antd";
+import { App, Button, Form, Input, InputNumber, Modal, Select, Switch } from "antd";
 import { Pencil, PlugZap, RefreshCw, Trash2, Upload } from "lucide-react";
 
 import {
@@ -33,9 +33,25 @@ type WorkflowItem = {
     updatedAt: string;
 };
 
-type FieldDraft = ComfyWorkflowField & { included: boolean };
+type FieldDraft = ComfyWorkflowField;
 
 const CAPABILITY_OPTIONS = Object.entries(COMFY_CAPABILITY_META).map(([value, meta]) => ({ value, label: meta.label }));
+
+const FIELD_TYPE_OPTIONS = [
+    { value: "text", label: "单行文本" },
+    { value: "textarea", label: "多行文本" },
+    { value: "number", label: "数字" },
+    { value: "slider", label: "滑杆" },
+    { value: "dropdown", label: "下拉选择" },
+    { value: "boolean", label: "开关" },
+    { value: "image", label: "图片" },
+    { value: "video", label: "视频" },
+    { value: "audio", label: "音频" },
+];
+
+function fieldKey(field: Pick<ComfyWorkflowField, "node" | "input">) {
+    return `${field.node}:${field.input}`;
+}
 
 export function AdminComfyUiSection() {
     const { message, modal } = App.useApp();
@@ -125,7 +141,7 @@ export function AdminComfyUiSection() {
         try {
             const workflow = parseComfyWorkflowJson(await file.text());
             const name = file.name.replace(/\.json$/i, "").trim() || "未命名工作流";
-            const fields: FieldDraft[] = listComfyWorkflowInputCandidates(workflow).map((candidate) => ({ ...candidate.field, included: true }));
+            const fields: FieldDraft[] = listComfyWorkflowInputCandidates(workflow).map((candidate) => candidate.field);
             setEditingId(null);
             setEditorWorkflow(workflow);
             setEditorName(name);
@@ -142,17 +158,26 @@ export function AdminComfyUiSection() {
         // 兼容无字段配置的历史工作流（如 API 直接上传）：打开编辑时从工作流 JSON 重新推导
         const inferredFields = item.fields?.length ? item.fields : listComfyWorkflowInputCandidates(item.workflow).map((candidate) => candidate.field);
         setEditingId(item.id);
-        setEditorWorkflow(null);
+        setEditorWorkflow(item.workflow);
         setEditorName(item.name);
         setEditorTitle(item.title);
         setEditorCapability((item.capability || inferComfyWorkflowCapability(item.workflow, inferredFields) || "") as ComfyUiCapability | "");
-        setEditorFields(inferredFields.map((field) => ({ ...field, included: true })));
+        setEditorFields(inferredFields.map((field) => ({ ...field })));
         setEditorOpen(true);
+    };
+
+    const updateEditorField = (index: number, patch: Partial<ComfyWorkflowField>) => setEditorFields((current) => current.map((item, i) => (i === index ? { ...item, ...patch } : item)));
+
+    const addEditorCandidate = (key: string) => {
+        if (!editorWorkflow) return;
+        const candidate = listComfyWorkflowInputCandidates(editorWorkflow).find((item) => fieldKey(item.field) === key);
+        if (!candidate || editorFields.some((field) => fieldKey(field) === key)) return;
+        setEditorFields((current) => [...current, candidate.field]);
     };
 
     const saveEditor = async () => {
         const title = editorTitle.trim() || editorName.trim() || "未命名工作流";
-        const fields = editorFields.filter((field) => field.included).map(({ included: _included, ...field }) => field);
+        const fields = editorFields;
         setEditorSaving(true);
         try {
             let id = editingId;
@@ -299,7 +324,7 @@ export function AdminComfyUiSection() {
                 okText={editingId ? "保存" : "上传"}
                 cancelText="取消"
                 confirmLoading={editorSaving}
-                width={760}
+                width={860}
                 onOk={() => void saveEditor()}
                 onCancel={() => setEditorOpen(false)}
             >
@@ -327,35 +352,84 @@ export function AdminComfyUiSection() {
                         <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">留空则由画布端根据工作流内容自动识别。</p>
                     </div>
                     <div>
-                        <div className="mb-1.5 text-xs font-medium text-zinc-600 dark:text-zinc-300">参数表单（{editorFields.filter((field) => field.included).length} / {editorFields.length} 项启用）</div>
+                        <div className="mb-1.5 text-xs font-medium text-zinc-600 dark:text-zinc-300">参数表单（{editorFields.length} 项，画布节点按此渲染）</div>
                         {editorFields.length === 0 ? (
                             <div className="rounded-md border border-dashed border-zinc-300 py-4 text-center text-xs text-zinc-500 dark:border-zinc-700 dark:text-zinc-400">
-                                这套工作流没有可填参数，画布端将直接按原样执行。
+                                暂无参数，从下方「可用输入」添加；不添加则画布端按原样执行。
                             </div>
                         ) : (
                             <div className="divide-y divide-zinc-100 rounded-md border border-zinc-200 dark:divide-zinc-800/70 dark:border-zinc-800">
                                 {editorFields.map((field, index) => (
-                                    <div key={field.id} className="flex items-center gap-3 px-3 py-2">
-                                        <Checkbox
-                                            checked={field.included}
-                                            onChange={(event) => setEditorFields((current) => current.map((item, i) => (i === index ? { ...item, included: event.target.checked } : item)))}
-                                        />
-                                        <Input
-                                            className="max-w-40"
-                                            size="small"
-                                            value={field.name}
-                                            disabled={!field.included}
-                                            onChange={(event) => setEditorFields((current) => current.map((item, i) => (i === index ? { ...item, name: event.target.value } : item)))}
-                                        />
-                                        <span className="rounded bg-zinc-100 px-1.5 py-0.5 text-[11px] text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300">{field.type}</span>
-                                        <span className="min-w-0 flex-1 truncate text-xs text-zinc-400 dark:text-zinc-500">
-                                            节点 {field.node} · {field.input}
-                                        </span>
+                                    <div key={field.id} className="space-y-2 px-3 py-2.5">
+                                        <div className="flex items-center gap-2">
+                                            <Input className="max-w-44" size="small" value={field.name} placeholder="参数显示名" onChange={(event) => updateEditorField(index, { name: event.target.value })} />
+                                            <Select className="w-28" size="small" value={field.type} options={FIELD_TYPE_OPTIONS} onChange={(type) => updateEditorField(index, { type })} />
+                                            <span className="min-w-0 flex-1 truncate text-xs text-zinc-400 dark:text-zinc-500">
+                                                节点 {field.node} · {field.input}
+                                            </span>
+                                            <Button size="small" type="text" danger icon={<Trash2 className="size-3.5" />} aria-label="删除该参数" onClick={() => setEditorFields((current) => current.filter((_, i) => i !== index))} />
+                                        </div>
+                                        <div className="flex flex-wrap items-center gap-2">
+                                            {field.type === "number" || field.type === "slider" ? (
+                                                <>
+                                                    <InputNumber size="small" className="w-24" placeholder="最小" value={field.min ?? undefined} onChange={(min) => updateEditorField(index, { min })} />
+                                                    <InputNumber size="small" className="w-24" placeholder="最大" value={field.max ?? undefined} onChange={(max) => updateEditorField(index, { max })} />
+                                                    <InputNumber size="small" className="w-24" placeholder="步长" value={field.step ?? undefined} onChange={(step) => updateEditorField(index, { step })} />
+                                                </>
+                                            ) : field.type === "dropdown" ? (
+                                                <Select
+                                                    className="min-w-56 flex-1"
+                                                    size="small"
+                                                    mode="tags"
+                                                    placeholder="选项，回车添加"
+                                                    open={false}
+                                                    suffixIcon={null}
+                                                    value={field.options || []}
+                                                    onChange={(options) => updateEditorField(index, { options })}
+                                                />
+                                            ) : field.type === "boolean" ? (
+                                                <Switch size="small" checked={Boolean(field.default)} onChange={(checked) => updateEditorField(index, { default: checked })} />
+                                            ) : field.type === "image" || field.type === "video" || field.type === "audio" ? (
+                                                <span className="text-xs text-zinc-400 dark:text-zinc-500">媒体字段在画布端引用上游节点，无需默认值</span>
+                                            ) : (
+                                                <Input
+                                                    size="small"
+                                                    className="min-w-56 flex-1"
+                                                    placeholder="默认值"
+                                                    value={field.default === undefined || field.default === null ? "" : String(field.default)}
+                                                    onChange={(event) => updateEditorField(index, { default: event.target.value === "" ? undefined : event.target.value })}
+                                                />
+                                            )}
+                                            <label className="flex items-center gap-1.5 text-xs text-zinc-500 dark:text-zinc-400">
+                                                <Switch size="small" checked={Boolean(field.bindPrompt)} onChange={(checked) => updateEditorField(index, { bindPrompt: checked })} />
+                                                绑定提示词
+                                            </label>
+                                            {field.type === "number" || field.type === "slider" ? (
+                                                <label className="flex items-center gap-1.5 text-xs text-zinc-500 dark:text-zinc-400">
+                                                    <Switch size="small" checked={Boolean(field.randomEnabled)} onChange={(checked) => updateEditorField(index, { randomEnabled: checked })} />
+                                                    每次随机
+                                                </label>
+                                            ) : null}
+                                        </div>
                                     </div>
                                 ))}
                             </div>
                         )}
-                        <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">勾选决定画布节点表单里出现哪些参数，左侧可改参数显示名。</p>
+                        {editorWorkflow ? (
+                            <div className="mt-2">
+                                <div className="mb-1.5 text-xs font-medium text-zinc-600 dark:text-zinc-300">可用输入（点击添加，已排除节点间连线）</div>
+                                <div className="flex flex-wrap gap-1.5">
+                                    {listComfyWorkflowInputCandidates(editorWorkflow)
+                                        .filter((candidate) => !editorFields.some((field) => fieldKey(field) === fieldKey(candidate.field)))
+                                        .map((candidate) => (
+                                            <Button key={fieldKey(candidate.field)} size="small" onClick={() => addEditorCandidate(fieldKey(candidate.field))}>
+                                                {candidate.nodeTitle} · {candidate.input}
+                                            </Button>
+                                        ))}
+                                </div>
+                            </div>
+                        ) : null}
+                        <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">数字/滑杆可限定最小、最大、步长；下拉选择可维护选项；绑定提示词的字段会被 Agent 任务自动填入提示词。</p>
                     </div>
                 </div>
             </Modal>

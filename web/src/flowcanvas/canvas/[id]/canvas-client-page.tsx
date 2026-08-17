@@ -18,7 +18,7 @@ import { defaultConfig, type AiConfig, type ComfyUiConfig, useConfigStore, useEf
 import { imageToDataUrl, resolveImageUrl, uploadImage, type UploadedImage } from "@/flowcanvas/services/image-storage";
 import { resolveMediaUrl, uploadMediaFile, type UploadedFile } from "@/flowcanvas/services/file-storage";
 import { nanoid } from "nanoid";
-import { getDataUrlByteSize, readImageMeta } from "@/flowcanvas/lib/image-utils";
+import { dataUrlToBlob, getDataUrlByteSize, readImageMeta } from "@/flowcanvas/lib/image-utils";
 import { canvasThemes, type CanvasBackgroundMode } from "@/flowcanvas/lib/canvas-theme";
 import { useAssetStore } from "@/flowcanvas/stores/use-asset-store";
 import { useUserStore } from "@/flowcanvas/stores/use-user-store";
@@ -7140,9 +7140,9 @@ function isComfyMaskField(workflow: ComfyWorkflow, field: ComfyWorkflowField) {
 
 async function uploadComfyImageSource(config: ComfyUiConfig, source: string, filename: string, signal?: AbortSignal) {
     if (!source) throw new Error("无法读取局部编辑图片");
-    const response = await fetch(source, { signal });
-    if (!response.ok) throw new Error(`读取局部编辑图片失败：HTTP ${response.status}`);
-    return uploadComfyFile(config, await response.blob(), filename, signal);
+    // CSP connect-src 不允许 data: URL 作为 fetch 目标，data URL 直接解码为 Blob
+    const blob = source.startsWith("data:") ? dataUrlToBlob(source) : await (await fetch(source, { signal })).blob();
+    return uploadComfyFile(config, blob, filename, signal);
 }
 
 function comfyUploadPath(upload: { name: string; subfolder?: string }) {
@@ -7150,10 +7150,12 @@ function comfyUploadPath(upload: { name: string; subfolder?: string }) {
 }
 
 async function buildComfyMaskedSource(sourceUrl: string, maskDataUrl: string) {
-    const [sourceResponse, maskResponse] = await Promise.all([fetch(sourceUrl), fetch(maskDataUrl)]);
-    if (!sourceResponse.ok) throw new Error(`读取原图失败：HTTP ${sourceResponse.status}`);
-    if (!maskResponse.ok) throw new Error(`读取蒙版失败：HTTP ${maskResponse.status}`);
-    const [sourceBitmap, maskBitmap] = await Promise.all([createImageBitmap(await sourceResponse.blob()), createImageBitmap(await maskResponse.blob())]);
+    const [sourceBlob, maskBlob] = await Promise.all([
+        sourceUrl.startsWith("data:") ? Promise.resolve(dataUrlToBlob(sourceUrl)) : fetch(sourceUrl).then((response) => (response.ok ? response.blob() : Promise.reject(new Error(`读取原图失败：HTTP ${response.status}`)))),
+        // CSP connect-src 不允许 data: URL 作为 fetch 目标，data URL 直接解码为 Blob
+        maskDataUrl.startsWith("data:") ? Promise.resolve(dataUrlToBlob(maskDataUrl)) : fetch(maskDataUrl).then((response) => (response.ok ? response.blob() : Promise.reject(new Error(`读取蒙版失败：HTTP ${response.status}`)))),
+    ]);
+    const [sourceBitmap, maskBitmap] = await Promise.all([createImageBitmap(sourceBlob), createImageBitmap(maskBlob)]);
     try {
         const canvas = document.createElement("canvas");
         canvas.width = sourceBitmap.width;
@@ -7233,8 +7235,8 @@ function replaceStandaloneLabel(value: string, label: string, replacement: strin
 async function fetchMediaBlob(media: { dataUrl?: string; url?: string; storageKey?: string; name?: string; type?: string }) {
     const source = media.dataUrl || media.url || media.storageKey;
     if (!source) throw new Error("无法读取媒体数据");
-    const response = await fetch(source);
-    const blob = await response.blob();
+    // CSP connect-src 不允许 data: URL 作为 fetch 目标，data URL 直接解码为 Blob
+    const blob = source.startsWith("data:") ? dataUrlToBlob(source) : await (await fetch(source)).blob();
     const ext = blob.type.split("/")[1]?.split(";")[0] || "bin";
     const filename = `${media.name || `upload-${Date.now()}`}.${ext}`;
     return { blob, filename };

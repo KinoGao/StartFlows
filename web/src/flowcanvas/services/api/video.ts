@@ -3,6 +3,7 @@ import { apiUrl } from "@/flowcanvas/constant/env";
 
 import { uploadMediaFile, type UploadedFile } from "@/flowcanvas/services/file-storage";
 import { imageToDataUrl, imageToFile } from "@/flowcanvas/services/image-storage";
+import { dataUrlToBlob } from "@/flowcanvas/lib/image-utils";
 import {
     boolConfig,
     isAgnesVideoConfig,
@@ -394,7 +395,8 @@ async function uploadReferencesToBackend(references: ReferenceImage[], token: st
         references.map(async (image) => {
             const dataUrl = await imageToDataUrl(image);
             if (!dataUrl) throw new Error("读取本地参考图失败");
-            const blob = await (await fetch(dataUrl)).blob();
+            // CSP connect-src 不允许 data: URL 作为 fetch 目标，data URL 直接解码为 Blob
+            const blob = dataUrl.startsWith("data:") ? dataUrlToBlob(dataUrl) : await (await fetch(dataUrl)).blob();
             return uploadImageToCurrentBackend(token, blob, image.name || "reference.png");
         }),
     );

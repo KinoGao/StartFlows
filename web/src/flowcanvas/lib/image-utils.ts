@@ -60,3 +60,16 @@ export function dataUrlToFile(image: ReferenceImage) {
     }
     return new File([bytes], image.name || "reference.png", { type: mimeType });
 }
+
+// CSP 的 connect-src 不允许 data: URL 作为 fetch 目标；需要读取 data URL 内容时直接解码，
+// 不要 fetch(dataUrl)。
+export function dataUrlToBlob(dataUrl: string): Blob {
+    const [header, content] = dataUrl.split(",", 2);
+    const mimeType = header.match(/data:(.*?)(?:;base64)?$/)?.[1] || "application/octet-stream";
+    const binary = atob(content || "");
+    const bytes = new Uint8Array(binary.length);
+    for (let index = 0; index < binary.length; index += 1) {
+        bytes[index] = binary.charCodeAt(index);
+    }
+    return new Blob([bytes], { type: mimeType });
+}
