@@ -42,7 +42,7 @@ export default function HomePage() {
             </span>
           </h1>
           <p className="mt-6 max-w-2xl text-base leading-8 text-zinc-600 dark:text-zinc-400">
-            VOZEB PRO 把
+            StartFlows 把
             Agent、图片与视频生成、Canvas、短剧、素材沉淀和商业运营放在同一套服务端工作流里。
           </p>
           <div className="mt-8 flex flex-wrap gap-3">
@@ -77,7 +77,7 @@ export default function HomePage() {
         <div className="overflow-hidden rounded-2xl lg:w-[108%] lg:max-w-none">
           <img
             src={previewImages[0].src}
-            alt="VOZEB PRO 效果图"
+            alt="StartFlows 效果图"
             className="aspect-[16/10] w-full rounded-xl object-cover"
           />
         </div>

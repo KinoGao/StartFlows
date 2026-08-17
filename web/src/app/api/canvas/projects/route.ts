@@ -8,7 +8,7 @@ export async function GET(request: Request) {
     const user = await getCurrentUser();
     if (!user) return NextResponse.json({ code: 401, data: null, msg: "请先登录" }, { status: 401 });
     const params = new URL(request.url).searchParams;
-    return NextResponse.json({ code: 0, data: await listCanvasProjectsForUser(user.id, { page: params.get("page"), pageSize: params.get("pageSize") }), msg: "OK" });
+    return NextResponse.json({ code: 0, data: await listCanvasProjectsForUser(user.id, { page: params.get("page"), pageSize: params.get("pageSize"), surface: params.get("surface") }), msg: "OK" });
 }
 
 export async function POST(request: Request) {

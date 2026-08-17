@@ -5,6 +5,7 @@ import { useCallback } from "react";
 import { resolveSiteTitle } from "@/lib/site-brand";
 import { usePublicSessionStore } from "@/stores/use-public-session-store";
 import { useCanvasStore } from "../stores/use-canvas-store";
+import { useCanvasHomePath } from "../canvas-home-path";
 
 import { CanvasHistoryEntry } from "./canvas-page-elements";
 
@@ -12,6 +13,7 @@ import type { CanvasPageState } from "./use-canvas-page-state";
 
 export function useCanvasNavigationActions({ state }: { state: CanvasPageState }) {
     const siteTitle = usePublicSessionStore((current) => resolveSiteTitle(current.payload?.settings?.site?.title));
+    const canvasHomePath = useCanvasHomePath();
     const {
         message,
         router,
@@ -123,11 +125,11 @@ export function useCanvasNavigationActions({ state }: { state: CanvasPageState }
     const deleteCurrentProject = useCallback(async () => {
         try {
             await deleteProjects([projectId]);
-            router.push("/canvas");
+            router.push(canvasHomePath);
         } catch (error) {
             message.error(error instanceof Error ? error.message : "画布删除失败");
         }
-    }, [deleteProjects, message, projectId, router]);
+    }, [canvasHomePath, deleteProjects, message, projectId, router]);
     return {
         resetViewport,
         locateCanvasNode,

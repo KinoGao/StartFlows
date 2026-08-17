@@ -1,4 +1,5 @@
 import { resolveGlobalAiOpcPreset } from "@/lib/globalaiopc-catalog";
+import { getAuthSettings } from "@/lib/auth/store";
 import { generationModelId, systemGenerationChannelId } from "@/lib/server/generation-channel";
 import { generationMediaProxyHeaders } from "@/lib/server/generation-media-authorization";
 import { finishGenerationAttempt } from "@/lib/server/generation-attempt";
@@ -33,7 +34,7 @@ export async function queryVideoTaskUpstream(task: VideoTask, origin: string, co
     if (isGeminiVideoTask(task)) return queryGeminiVideoUpstream(task, origin, cookie, workerUserId);
     const data = await queryVideoUpstream(task, origin, cookie, workerUserId);
     const status = readVideoProviderStatus(data, task.config.advancedConfig?.statusField);
-    const resultUrl = readVideoProviderUrl(data, task.config.advancedConfig?.resultField);
+    const resultUrl = readVideoProviderUrl(data, task.config.advancedConfig?.resultField) || (VIDEO_PROVIDER_SUCCESS.has(status) ? await videoContentPathResult(task) : "");
     if (resultUrl || VIDEO_PROVIDER_SUCCESS.has(status)) {
         return resultUrl ? { state: "result_ready", status: status || "completed", resultUrl } : { state: "failed", status: status || "completed", error: "视频任务已完成但没有返回视频地址" };
     }
@@ -140,6 +141,19 @@ async function registerVideoAsset(task: VideoTask) {
         title: task.prompt?.slice(0, 80) || "生成视频",
         assets: [{ type: "video", url, mimeType: task.result?.mimeType || "video/mp4", durationMs: task.result?.durationMs }],
     }).catch((error) => console.error("Creative video asset registration failed", error));
+}
+
+// sub2api 等异步视频契约：完成态不返回媒体 URL，而是从 resultField 内容路径下载
+// （如 /videos/:task_id/content）。此时把路径模板解析为带渠道鉴权的绝对下载地址，
+// 由媒体代理按渠道 key 拉取并落盘。
+async function videoContentPathResult(task: VideoTask) {
+    const template = task.config.advancedConfig?.resultField?.trim() || "";
+    if (!template.startsWith("/") || !/(:task_id|:id)/.test(template) || !task.config.channelId) return "";
+    const settings = await getAuthSettings();
+    const channel = settings.systemChannels.find((item) => item.id === task.config.channelId);
+    if (!channel?.baseUrl) return "";
+    const path = template.replace(/:task_id|:id/g, encodeURIComponent(task.upstream.id));
+    return `${channel.baseUrl.replace(/\/+$/, "")}${path}`;
 }
 
 async function queryVideoUpstream(task: VideoTask, origin: string, cookie: string, workerUserId = "") {

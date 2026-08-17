@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
     fail: vi.fn(),
     fetchInternalApi: vi.fn(),
     get: vi.fn(),
+    getAuthSettings: vi.fn(),
     normalize: vi.fn(),
     refund: vi.fn(),
     register: vi.fn(),
@@ -14,7 +15,7 @@ const mocks = vi.hoisted(() => ({
     writeLog: vi.fn(),
 }));
 
-vi.mock("@/lib/auth/store", () => ({ refundUserPoints: mocks.refund }));
+vi.mock("@/lib/auth/store", () => ({ getAuthSettings: mocks.getAuthSettings, refundUserPoints: mocks.refund }));
 vi.mock("@/lib/globalaiopc-catalog", () => ({ resolveGlobalAiOpcPreset: vi.fn(() => undefined) }));
 vi.mock("@/lib/server/internal-origin", () => ({ fetchInternalApi: mocks.fetchInternalApi }));
 vi.mock("@/lib/server/creative-runtime-service", () => ({ registerGenerationTaskAssetsForUser: mocks.register }));
@@ -234,6 +235,49 @@ describe("video task upstream reconciliation", () => {
         await expect(queryVideoTaskUpstream(task, "http://localhost", "session=test")).rejects.toThrow("视频接口返回了无效 JSON");
         expect(mocks.fetchInternalApi).toHaveBeenCalledOnce();
         expect((mocks.fetchInternalApi.mock.calls[0]?.[1] as RequestInit).method).toBeUndefined();
+    });
+
+    it("resolves a completed sub2api task from the resultField content path", async () => {
+        const task = videoTask({
+            config: {
+                ...videoTask().config,
+                advancedConfig: {
+                    protocol: "sub2api",
+                    queryPath: "/videos/:task_id",
+                    statusField: "status",
+                    resultField: "/videos/:task_id/content",
+                } as NonNullable<VideoTask["config"]["advancedConfig"]>,
+            },
+        });
+        mocks.fetchInternalApi.mockResolvedValue(json({ id: task.upstream.id, status: "completed" }));
+        mocks.getAuthSettings.mockResolvedValue({ systemChannels: [{ id: "channel", baseUrl: "https://img.junliai.org/v1" }] });
+
+        await expect(queryVideoTaskUpstream(task, "http://localhost", "session=test")).resolves.toMatchObject({
+            state: "result_ready",
+            status: "completed",
+            resultUrl: `https://img.junliai.org/v1/videos/${task.upstream.id}/content`,
+        });
+    });
+
+    it("keeps the content path fallback empty when the channel base URL is unknown", async () => {
+        const task = videoTask({
+            config: {
+                ...videoTask().config,
+                advancedConfig: {
+                    protocol: "sub2api",
+                    queryPath: "/videos/:task_id",
+                    statusField: "status",
+                    resultField: "/videos/:task_id/content",
+                } as NonNullable<VideoTask["config"]["advancedConfig"]>,
+            },
+        });
+        mocks.fetchInternalApi.mockResolvedValue(json({ id: task.upstream.id, status: "completed" }));
+        mocks.getAuthSettings.mockResolvedValue({ systemChannels: [] });
+
+        await expect(queryVideoTaskUpstream(task, "http://localhost", "session=test")).resolves.toMatchObject({
+            state: "failed",
+            error: "视频任务已完成但没有返回视频地址",
+        });
     });
 
     it("does not query upstream again before the polling interval elapses", async () => {

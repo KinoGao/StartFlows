@@ -36,7 +36,7 @@ export function AdminSiteSection({ controller }: { controller: AdminDashboardCon
                             </LabeledControl>
                             <LabeledControl label="Logo URL">
                                 <div className="flex gap-2">
-                                    <Input value={settings.site.logoUrl} maxLength={2000} placeholder="/logo.svg 或 https://..." onChange={(event) => updateSiteSetting("logoUrl", event.target.value)} />
+                                    <Input value={settings.site.logoUrl} maxLength={2000} placeholder="/logo.png 或 https://..." onChange={(event) => updateSiteSetting("logoUrl", event.target.value)} />
                                     <Button icon={<Upload className="size-4" />} onClick={() => logoInputRef.current?.click()}>
                                         上传
                                     </Button>
@@ -44,7 +44,7 @@ export function AdminSiteSection({ controller }: { controller: AdminDashboardCon
                             </LabeledControl>
                             <LabeledControl label="浏览器图标 URL">
                                 <div className="flex gap-2">
-                                    <Input value={settings.site.iconUrl} maxLength={2000} placeholder="/icon.svg、/favicon.ico 或 https://..." onChange={(event) => updateSiteSetting("iconUrl", event.target.value)} />
+                                    <Input value={settings.site.iconUrl} maxLength={2000} placeholder="/icon.png、/favicon.ico 或 https://..." onChange={(event) => updateSiteSetting("iconUrl", event.target.value)} />
                                     <Button icon={<Upload className="size-4" />} onClick={() => iconInputRef.current?.click()}>
                                         上传
                                     </Button>

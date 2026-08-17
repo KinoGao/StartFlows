@@ -7,12 +7,14 @@ import { useState } from "react";
 
 import { useCanvasStore, type CanvasProjectSummary } from "../stores/use-canvas-store";
 import { useCanvasUiStore } from "../stores/use-canvas-ui-store";
+import { useCanvasHomePath } from "../canvas-home-path";
 import { exportCanvasProjects } from "../utils/canvas-export";
 
 export function CanvasProjectCard({ project }: { project: CanvasProjectSummary }) {
     const { message } = App.useApp();
     const router = useRouter();
     const searchParams = useSearchParams();
+    const canvasHomePath = useCanvasHomePath();
     const renameProject = useCanvasStore((state) => state.renameProject);
     const loadProject = useCanvasStore((state) => state.loadProject);
     const [exporting, setExporting] = useState(false);
@@ -26,7 +28,7 @@ export function CanvasProjectCard({ project }: { project: CanvasProjectSummary }
     const setDeleteIds = useCanvasUiStore((state) => state.setDeleteProjectIds);
     const editing = editingId === project.id;
     const selected = selectedIds.includes(project.id);
-    const open = () => router.push(`/canvas/${project.id}${searchParams.toString() ? `?${searchParams.toString()}` : ""}`);
+    const open = () => router.push(`${canvasHomePath}/${project.id}${searchParams.toString() ? `?${searchParams.toString()}` : ""}`);
     const saveTitle = () => {
         renameProject(project.id, editingTitle);
         stopEditing();

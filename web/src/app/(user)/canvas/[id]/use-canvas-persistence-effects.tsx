@@ -4,6 +4,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef } from "react";
 
 import { isGenerationTaskNeedsReviewError } from "@/services/api/generation-task-state";
 import { CanvasNodeType, isCanvasImageNodeType } from "../types";
+import { useCanvasHomePath } from "../canvas-home-path";
 import { classifyCanvasVideoTaskFailure } from "./canvas-video-task-recovery";
 
 import { NODE_STATUS_ERROR, NODE_STATUS_LOADING } from "./canvas-page-elements";
@@ -15,6 +16,7 @@ import type { CanvasTaskRuntime } from "./use-canvas-task-runtime";
 
 export function useCanvasPersistenceEffects({ state, tasks }: { state: CanvasPageState; tasks: CanvasTaskRuntime }) {
     const skipInitialProjectSyncRef = useRef(false);
+    const canvasHomePath = useCanvasHomePath();
     const {
         message,
         modal,
@@ -196,13 +198,13 @@ export function useCanvasPersistenceEffects({ state, tasks }: { state: CanvasPag
             .catch((error) => {
                 if (cancelled) return;
                 const text = error instanceof Error ? error.message : "画布项目加载失败";
-                if (text.includes("不存在")) router.replace("/canvas");
+                if (text.includes("不存在")) router.replace(canvasHomePath);
                 else message.error(text);
             });
         return () => {
             cancelled = true;
         };
-    }, [hydrated, hydratedUserId, loadProject, message, projectId, router, userId]);
+    }, [canvasHomePath, hydrated, hydratedUserId, loadProject, message, projectId, router, userId]);
 
     useEffect(() => {
         if (!projectLoaded) return;

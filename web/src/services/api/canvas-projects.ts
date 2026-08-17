@@ -1,7 +1,8 @@
 import type { CanvasProject, CanvasProjectMutation, CanvasProjectSaveAck, CanvasProjectSummaryPage, CreateCanvasProjectInput } from "@/lib/canvas-project-contract";
 
 export function listCanvasProjectSummaries(input: { page: number; pageSize: number }) {
-    const query = new URLSearchParams({ page: String(input.page), pageSize: String(input.pageSize) });
+    // 智能画布（VOZEB 原画布）独立项目空间；创作画布（FlowCanvas）不传 surface，默认 canvas
+    const query = new URLSearchParams({ page: String(input.page), pageSize: String(input.pageSize), surface: "smart" });
     return request<CanvasProjectSummaryPage>(`/api/canvas/projects?${query}`, { cache: "no-store" });
 }
 
@@ -10,7 +11,7 @@ export function getCanvasProject(id: string) {
 }
 
 export function createCanvasProject(input: CreateCanvasProjectInput) {
-    return request<{ project: CanvasProject }>("/api/canvas/projects", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(input) }).then((data) => data.project);
+    return request<{ project: CanvasProject }>("/api/canvas/projects", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...input, surface: "smart" }) }).then((data) => data.project);
 }
 
 export function saveCanvasProject(project: CanvasProject, expectedUpdatedAt: string) {

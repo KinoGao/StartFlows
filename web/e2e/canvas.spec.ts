@@ -527,7 +527,7 @@ test("canvas separates project management from the command menu and keeps assets
     const target = await createCanvasProject(request, { title: targetTitle, nodes: [], connections: [] });
     const project = await createCanvasProject(request, {
         title: `Canvas 资产侧栏 ${randomUUID().slice(0, 8)}`,
-        nodes: Array.from({ length: 5 }, (_, index) => node(`asset-${index + 1}`, "image", index * 180, 120, 160, 120, { content: "/logo.svg", naturalWidth: 160, naturalHeight: 120 })),
+        nodes: Array.from({ length: 5 }, (_, index) => node(`asset-${index + 1}`, "image", index * 180, 120, 160, 120, { content: "/logo.png", naturalWidth: 160, naturalHeight: 120 })),
         connections: [],
     });
 
@@ -748,12 +748,12 @@ test("canvas restores all nine node types and opens text editing on a single cli
         title: `Canvas 节点矩阵 ${randomUUID().slice(0, 8)}`,
         viewport: { x: 90, y: 80, k: 0.75 },
         nodes: [
-            node("matrix-image", "image", 40, 80, 240, 180, { content: "/logo.svg", naturalWidth: 240, naturalHeight: 180 }),
-            node("matrix-panorama", "panorama", 340, 80, 300, 150, { content: "/logo.svg", naturalWidth: 300, naturalHeight: 150 }),
+            node("matrix-image", "image", 40, 80, 240, 180, { content: "/logo.png", naturalWidth: 240, naturalHeight: 180 }),
+            node("matrix-panorama", "panorama", 340, 80, 300, 150, { content: "/logo.png", naturalWidth: 300, naturalHeight: 150 }),
             node("matrix-text", "text", 700, 80, 260, 180, { content: "单击编辑文本" }),
             node("matrix-config", "config", 1020, 80, 300, 180, { generationMode: "image", model: "" }),
-            node("matrix-video", "video", 40, 360, 260, 170, { content: "/logo.svg", mimeType: "video/mp4" }),
-            node("matrix-audio", "audio", 340, 360, 260, 150, { content: "/logo.svg", mimeType: "audio/mpeg" }),
+            node("matrix-video", "video", 40, 360, 260, 170, { content: "/logo.png", mimeType: "video/mp4" }),
+            node("matrix-audio", "audio", 340, 360, 260, 150, { content: "/logo.png", mimeType: "audio/mpeg" }),
             node("matrix-brief", "brief", 700, 340, 320, 210, { agentBrief: { objective: "节点矩阵目标", deliverables: [{ type: "image", title: "主视觉", count: 1 }] } }),
             node("matrix-task", "task", 40, 640, 300, 180, { prompt: "任务恢复内容", agentTaskStatus: "completed", agentTaskAttempts: 1 }),
             node("matrix-brand", "brand-kit", 420, 620, 320, 200, { brandKit: { summary: "品牌方向恢复", keywords: ["电影感"] } }),

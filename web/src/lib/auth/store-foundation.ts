@@ -82,13 +82,13 @@ export const EMAIL_CODE_RESEND_COOLDOWN_MS = 1000 * 60;
 export const DEFAULT_USER_POINTS = 0;
 export const DEFAULT_MODEL_POINT_COST_KEY = "__default__";
 export const DEFAULT_SITE_SETTINGS: SiteSettings = {
-    title: "VOZEB PRO",
+    title: "StartFlows",
     logoUrl: "/logo.png",
     iconUrl: "/icon.png",
-    seoTitle: "VOZEB PRO",
+    seoTitle: "StartFlows",
     seoDescription: "面向 Agent、图片、视频、画布与短剧生产的一体化 AI 创作工作台",
-    seoKeywords: "VOZEB PRO,AI Agent,AI 绘图,AI 视频,画布,短剧,提示词库,素材管理",
-    footerCopyright: "© 2026 VOZEB PRO. All rights reserved.",
+    seoKeywords: "StartFlows,AI Agent,AI 绘图,AI 视频,画布,短剧,提示词库,素材管理",
+    footerCopyright: "© 2026 StartFlows. All rights reserved.",
     termsUrl: "/terms",
     termsVersion: "1.0",
     privacyUrl: "/privacy",
@@ -104,7 +104,7 @@ export const DEFAULT_MAIL_SETTINGS: MailSettings = {
     username: "",
     password: "",
     fromEmail: "",
-    fromName: "VOZEB PRO",
+    fromName: "StartFlows",
 };
 export const DEFAULT_GENERATION_POINT_MULTIPLIERS: GenerationPointMultipliers = {
     imageQuality: { auto: 1, low: 1, medium: 1, high: 1 },

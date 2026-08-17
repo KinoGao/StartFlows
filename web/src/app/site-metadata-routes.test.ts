@@ -4,7 +4,7 @@ const mocks = vi.hoisted(() => ({
     getPublicSiteSettings: vi.fn(),
     siteMetadataBase: vi.fn(() => new URL("https://example.com")),
     absoluteSiteUrl: vi.fn((value: string, base = new URL("https://example.com")) => new URL(value, base).toString()),
-    browserIconHref: vi.fn((site: { iconUrl?: string; logoUrl?: string }) => site.iconUrl || site.logoUrl || "/icon.svg"),
+    browserIconHref: vi.fn((site: { iconUrl?: string; logoUrl?: string }) => site.iconUrl || site.logoUrl || "/icon.png"),
     listPublicWorkSitemapEntries: vi.fn(),
 }));
 

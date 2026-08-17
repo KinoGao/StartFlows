@@ -4,7 +4,7 @@ export const dynamic = "force-dynamic";
 
 export function GET(request: Request) {
   const target =
-    appFaviconUrl(request.url) || new URL("/logo.svg", request.url);
+    appFaviconUrl(request.url) || new URL("/logo.png", request.url);
   return NextResponse.redirect(target, {
     status: 307,
     headers: {

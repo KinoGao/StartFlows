@@ -181,7 +181,7 @@ describe("canvas project file provider", () => {
         expect(statement).toContain("jsonb_array_length");
         expect(statement).not.toMatch(/SELECT\s+project_json\s+FROM/i);
         expect(statement).toContain("LIMIT $2 OFFSET $3");
-        expect(params).toEqual(["user-one", 12, 12]);
+        expect(params).toEqual(["user-one", 12, 12, "canvas"]);
     });
 
     it("paginates complete PostgreSQL Canvas snapshots for explicit user export", async () => {
@@ -194,7 +194,7 @@ describe("canvas project file provider", () => {
         expect(statement).toContain("WHERE user_id = $1");
         expect(statement).toContain("ORDER BY updated_at DESC, id ASC");
         expect(statement).toContain("LIMIT $2 OFFSET $3");
-        expect(params).toEqual(["user-one", 2, 2]);
+        expect(params).toEqual(["user-one", 2, 2, "canvas"]);
     });
 
     it("prevents the unbounded Canvas reader from querying PostgreSQL", async () => {

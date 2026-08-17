@@ -1,11 +1,11 @@
-import type { CanvasProject, CanvasProjectMutation, CanvasProjectSaveAck, CanvasProjectSummary, CanvasProjectSummaryPage } from "@/lib/canvas-project-contract";
+import type { CanvasProject, CanvasProjectMutation, CanvasProjectSaveAck, CanvasProjectSummary, CanvasProjectSummaryPage, CanvasSurface } from "@/lib/canvas-project-contract";
 import { applyCanvasProjectMutation } from "@/lib/canvas-project-mutation";
 import { summarizeCanvasProjectRecord } from "@/lib/canvas-project-summary";
 import { summarizeCanvasProject, type CreateOverviewMedia, type CreateOverviewProject } from "@/lib/create-workbench-overview";
 import { readJsonDataFile, withJsonDataFileLock, writeJsonDataFile } from "@/lib/server/data-adapter";
 import { ensurePostgresSchema, getDatabaseProvider, postgresQuery } from "@/lib/server/database";
 
-type CanvasProjectRecord = { userId: string; project: CanvasProject };
+type CanvasProjectRecord = { userId: string; project: CanvasProject; surface?: CanvasSurface };
 type CanvasProjectDatabase = { version: 1; projects: CanvasProjectRecord[] };
 type StoredCanvasProject = CanvasProject & { __canvasLastMutationId?: string };
 export type CanvasProjectPage = { items: CanvasProject[]; total: number; page: number; pageSize: number };
@@ -13,15 +13,15 @@ export type CanvasProjectPage = { items: CanvasProject[]; total: number; page: n
 const FILE_NAME = "canvas-projects.json";
 let mutationQueue = Promise.resolve();
 
-export async function listCanvasProjects(userId: string) {
+export async function listCanvasProjects(userId: string, surface: CanvasSurface = "canvas") {
     if (getDatabaseProvider() === "postgres") throw new Error("PostgreSQL Canvas reads must use a paginated project query");
     return (await readDatabase()).projects
-        .filter((record) => record.userId === userId)
+        .filter((record) => record.userId === userId && (record.surface || "canvas") === surface)
         .map((record) => toPublicProject(record.project as StoredCanvasProject))
         .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt) || a.id.localeCompare(b.id));
 }
 
-export async function listCanvasProjectPage(userId: string, input: { page: number; pageSize: number }): Promise<CanvasProjectPage> {
+export async function listCanvasProjectPage(userId: string, input: { page: number; pageSize: number }, surface: CanvasSurface = "canvas"): Promise<CanvasProjectPage> {
     const offset = (input.page - 1) * input.pageSize;
     if (getDatabaseProvider() === "postgres") {
         await ensurePostgresSchema();
@@ -29,7 +29,7 @@ export async function listCanvasProjectPage(userId: string, input: { page: numbe
             `WITH filtered AS (
                  SELECT id, updated_at, project_json
                  FROM canvas_projects
-                 WHERE user_id = $1
+                 WHERE user_id = $1 AND surface = $4
              ), page_items AS (
                  SELECT id, updated_at, project_json
                  FROM filtered
@@ -40,7 +40,7 @@ export async function listCanvasProjectPage(userId: string, input: { page: numbe
              FROM (SELECT count(*)::integer AS total_count FROM filtered) totals
              LEFT JOIN page_items ON TRUE
              ORDER BY page_items.updated_at DESC NULLS LAST, page_items.id ASC`,
-            [userId, input.pageSize, offset],
+            [userId, input.pageSize, offset, surface],
         );
         return {
             ...input,
@@ -48,11 +48,11 @@ export async function listCanvasProjectPage(userId: string, input: { page: numbe
             total: Math.max(0, Number(result.rows[0]?.total_count) || 0),
         };
     }
-    const projects = await listCanvasProjects(userId);
+    const projects = await listCanvasProjects(userId, surface);
     return { ...input, items: projects.slice(offset, offset + input.pageSize), total: projects.length };
 }
 
-export async function listCanvasProjectSummaries(userId: string, input: { page: number; pageSize: number }): Promise<CanvasProjectSummaryPage> {
+export async function listCanvasProjectSummaries(userId: string, input: { page: number; pageSize: number }, surface: CanvasSurface = "canvas"): Promise<CanvasProjectSummaryPage> {
     const offset = (input.page - 1) * input.pageSize;
     if (getDatabaseProvider() === "postgres") {
         await ensurePostgresSchema();
@@ -64,7 +64,7 @@ export async function listCanvasProjectSummaries(userId: string, input: { page: 
                         jsonb_array_length(CASE WHEN jsonb_typeof(project_json->'nodes') = 'array' THEN project_json->'nodes' ELSE '[]'::jsonb END) AS node_count,
                         jsonb_array_length(CASE WHEN jsonb_typeof(project_json->'connections') = 'array' THEN project_json->'connections' ELSE '[]'::jsonb END) AS connection_count
                  FROM canvas_projects
-                 WHERE user_id = $1
+                 WHERE user_id = $1 AND surface = $4
              ), page_items AS (
                  SELECT * FROM filtered ORDER BY updated_at DESC, id ASC LIMIT $2 OFFSET $3
              )
@@ -72,11 +72,11 @@ export async function listCanvasProjectSummaries(userId: string, input: { page: 
              FROM (SELECT count(*)::integer AS total_count FROM filtered) totals
              LEFT JOIN page_items ON TRUE
              ORDER BY page_items.updated_at DESC NULLS LAST, page_items.id ASC`,
-            [userId, input.pageSize, offset],
+            [userId, input.pageSize, offset, surface],
         );
         return { projects: result.rows.filter((row) => row.id).map(mapProjectSummary), total: Math.max(0, Number(result.rows[0]?.total_count) || 0), ...input };
     }
-    const projects = (await listCanvasProjects(userId)).map(summarizeCanvasProjectRecord);
+    const projects = (await listCanvasProjects(userId, surface)).map(summarizeCanvasProjectRecord);
     return { projects: projects.slice(offset, offset + input.pageSize), total: projects.length, ...input };
 }
 
@@ -117,7 +117,7 @@ export async function getLatestCanvasProjectOverview(userId: string): Promise<Cr
                     ) preview
                 ), '[]'::jsonb) AS previews
             FROM canvas_projects
-            WHERE user_id = $1
+            WHERE user_id = $1 AND surface = 'canvas'
             ORDER BY updated_at DESC
             LIMIT 1
             `,
@@ -139,19 +139,19 @@ export async function getCanvasProject(id: string, userId: string) {
     return record ? toPublicProject(record.project as StoredCanvasProject) : null;
 }
 
-export async function createCanvasProject(userId: string, project: CanvasProject) {
+export async function createCanvasProject(userId: string, project: CanvasProject, surface: CanvasSurface = "canvas") {
     if (getDatabaseProvider() === "postgres") {
         await ensurePostgresSchema();
         await postgresQuery(
-            `INSERT INTO canvas_projects (id, user_id, title, project_json, created_at, updated_at)
-             VALUES ($1, $2, $3, $4::jsonb, $5, $6)`,
-            [project.id, userId, project.title, JSON.stringify(project), new Date(project.createdAt), new Date(project.updatedAt)],
+            `INSERT INTO canvas_projects (id, user_id, title, project_json, surface, created_at, updated_at)
+             VALUES ($1, $2, $3, $4::jsonb, $5, $6, $7)`,
+            [project.id, userId, project.title, JSON.stringify(project), surface, new Date(project.createdAt), new Date(project.updatedAt)],
         );
         return project;
     }
     await mutateDatabase((db) => {
         if (db.projects.some((record) => record.project.id === project.id)) throw new CanvasProjectStoreError("画布项目已存在", 409);
-        return { ...db, projects: [{ userId, project }, ...db.projects] };
+        return { ...db, projects: [{ userId, project, surface }, ...db.projects] };
     });
     return project;
 }

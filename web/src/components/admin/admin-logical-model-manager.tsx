@@ -329,9 +329,79 @@ function BindingEditor({ binding, capability, channels, onChange }: { binding: L
                         <Input value={profile.unitCostCurrency || ""} maxLength={12} placeholder="USD / CNY" onChange={(event) => updateProfile({ unitCostCurrency: event.target.value.trim().toUpperCase() })} />
                     </LabeledControl>
                 </div>
+                {capability === "video" || capability === "image" ? (
+                    <div className="mt-3 border-t border-stone-200/80 pt-3 dark:border-stone-800">
+                        <div className="mb-2 text-[11px] font-semibold text-stone-500 dark:text-stone-400">能力范围（供画布与工作台读取，逗号分隔）</div>
+                        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                            <LabeledControl label="生成模式">
+                                <Input value={profile.generationModes?.join(", ") || ""} placeholder="text-to-video, image-to-video" onChange={(event) => updateProfile({ generationModes: listFromText(event.target.value) })} />
+                            </LabeledControl>
+                            <LabeledControl label="分辨率">
+                                <Input value={profile.resolutions?.join(", ") || ""} placeholder="480p, 720p, 1080p" onChange={(event) => updateProfile({ resolutions: listFromText(event.target.value) })} />
+                            </LabeledControl>
+                            <LabeledControl label="时长档位（秒）">
+                                <Input value={profile.durations?.join(", ") || ""} placeholder="5, 10, 15" onChange={(event) => updateProfile({ durations: numbersFromText(event.target.value) })} />
+                            </LabeledControl>
+                            <LabeledControl label="数量档位">
+                                <Input value={profile.counts?.join(", ") || ""} placeholder="1, 2, 4" onChange={(event) => updateProfile({ counts: numbersFromText(event.target.value) })} />
+                            </LabeledControl>
+                            {capability === "image" ? (
+                                <>
+                                    <LabeledControl label="质量档位">
+                                        <Input value={profile.qualities?.join(", ") || ""} placeholder="low, standard, high" onChange={(event) => updateProfile({ qualities: listFromText(event.target.value) })} />
+                                    </LabeledControl>
+                                    <LabeledControl label="单次最大输出数">
+                                        <InputNumber className="w-full" min={0} max={64} precision={0} value={profile.maxOutputs} onChange={(value) => updateProfile({ maxOutputs: Number(value) || 0 })} />
+                                    </LabeledControl>
+                                    <LabeledControl label="最大总图数">
+                                        <InputNumber className="w-full" min={0} max={128} precision={0} value={profile.maxTotalImages} onChange={(value) => updateProfile({ maxTotalImages: Number(value) || 0 })} />
+                                    </LabeledControl>
+                                    <div className="flex flex-wrap items-center gap-3 text-xs text-stone-600 dark:text-stone-300">
+                                        <Checkbox checked={profile.sequentialImageGeneration === true} onChange={(event) => updateProfile({ sequentialImageGeneration: event.target.checked })}>
+                                            顺序生图
+                                        </Checkbox>
+                                        <Checkbox checked={profile.interactiveEdit === true} onChange={(event) => updateProfile({ interactiveEdit: event.target.checked })}>
+                                            交互编辑
+                                        </Checkbox>
+                                    </div>
+                                </>
+                            ) : (
+                                <>
+                                    <LabeledControl label="最大参考视频数">
+                                        <InputNumber className="w-full" min={0} max={32} precision={0} value={profile.maxReferenceVideos} onChange={(value) => updateProfile({ maxReferenceVideos: Number(value) || 0 })} />
+                                    </LabeledControl>
+                                    <LabeledControl label="最大参考音频数">
+                                        <InputNumber className="w-full" min={0} max={32} precision={0} value={profile.maxReferenceAudios} onChange={(value) => updateProfile({ maxReferenceAudios: Number(value) || 0 })} />
+                                    </LabeledControl>
+                                    <div className="flex flex-wrap items-center gap-3 text-xs text-stone-600 dark:text-stone-300 sm:col-span-2 lg:col-span-2">
+                                        <Checkbox checked={profile.generateAudio === true} onChange={(event) => updateProfile({ generateAudio: event.target.checked })}>
+                                            生成音频
+                                        </Checkbox>
+                                        <Checkbox checked={profile.watermark === true} onChange={(event) => updateProfile({ watermark: event.target.checked })}>
+                                            水印
+                                        </Checkbox>
+                                    </div>
+                                </>
+                            )}
+                        </div>
+                    </div>
+                ) : null}
             </div>
         </div>
     );
+}
+
+function listFromText(value: string) {
+    return value
+        .split(",")
+        .map((item) => item.trim())
+        .filter(Boolean);
+}
+
+function numbersFromText(value: string) {
+    return listFromText(value)
+        .map((item) => Number(item))
+        .filter((item) => Number.isFinite(item) && item > 0);
 }
 
 function cloneLogicalModel(model: LogicalModel): LogicalModel {

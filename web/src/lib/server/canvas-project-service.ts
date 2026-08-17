@@ -1,6 +1,6 @@
 import { nanoid } from "nanoid";
 
-import type { CanvasProject, CanvasProjectMutation, CanvasProjectSaveAck, CreateCanvasProjectInput } from "@/lib/canvas-project-contract";
+import type { CanvasProject, CanvasProjectMutation, CanvasProjectSaveAck, CanvasSurface, CreateCanvasProjectInput } from "@/lib/canvas-project-contract";
 import { createCanvasProject, CanvasProjectStoreError, getCanvasProject, listCanvasProjectSummaries, updateCanvasProject, updateCanvasProjectMutationPatch } from "@/lib/server/canvas-project-store";
 import { deleteUserLocalMediaAssets } from "@/lib/server/local-media-storage";
 import { createCreativeConversation } from "@/lib/server/creative-runtime-store";
@@ -17,11 +17,8 @@ export class CanvasProjectServiceError extends Error {
     }
 }
 
-export function listCanvasProjectsForUser(userId: string, input: { page?: unknown; pageSize?: unknown } = {}) {
-    return listCanvasProjectSummaries(userId, {
-        page: positiveInteger(input.page, 1, 1_000_000),
-        pageSize: positiveInteger(input.pageSize, 12, 100),
-    });
+export function listCanvasProjectsForUser(userId: string, input: { page?: unknown; pageSize?: unknown; surface?: unknown } = {}) {
+    return listCanvasProjectSummaries(userId, { page: positiveInteger(input.page, 1, 1_000_000), pageSize: positiveInteger(input.pageSize, 12, 100) }, normalizeSurface(input.surface));
 }
 
 export async function getCanvasProjectForUser(userId: string, id: string) {
@@ -31,7 +28,8 @@ export async function getCanvasProjectForUser(userId: string, id: string) {
 }
 
 export async function createCanvasProjectForUser(userId: string, value: unknown) {
-    const input = object(value) as CreateCanvasProjectInput;
+    const input = object(value) as CreateCanvasProjectInput & { surface?: unknown };
+    const surface = normalizeSurface(input.surface);
     const source = object(input.project);
     const sourceHandoffId = text(input.sourceHandoffId || source.sourceHandoffId, 160);
     const id = sourceHandoffId ? `canvas-${sourceHandoffId}` : `canvas-${nanoid()}`;
@@ -58,7 +56,7 @@ export async function createCanvasProjectForUser(userId: string, value: unknown)
         viewport: { x: 0, y: 0, k: 1 },
     });
     try {
-        return await createCanvasProject(userId, project);
+        return await createCanvasProject(userId, project, surface);
     } catch (error) {
         await deleteCanvasProjectAggregates(userId, [id]).catch(() => null);
         throw error;
@@ -202,6 +200,10 @@ function text(value: unknown, max: number) {
 function positiveInteger(value: unknown, fallback: number, max: number) {
     const parsed = Number(value);
     return Number.isSafeInteger(parsed) && parsed > 0 ? Math.min(parsed, max) : fallback;
+}
+
+function normalizeSurface(value: unknown): CanvasSurface {
+    return value === "smart" ? "smart" : "canvas";
 }
 
 function isoTimestamp(value: unknown) {

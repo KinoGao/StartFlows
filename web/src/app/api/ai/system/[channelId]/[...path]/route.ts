@@ -141,7 +141,7 @@ async function proxySystemRequest(request: Request, context: RouteContext) {
     const target = targetUrl(globalPreset?.baseUrl || channel.baseUrl, globalPreset?.apiFormat || apiFormat, globalAdaptation?.path || path, new URL(request.url).search, globalChannel, modelConfig?.protocol || channel.advancedConfig?.protocol);
     if (!(await isSafeOutboundUrl(target, { allowCredentials: false }))) return NextResponse.json({ error: "接口地址不允许访问内网或保留地址" }, { status: 400 });
     const headers = new Headers();
-    if (contentType && !isMultipart) headers.set("content-type", contentType);
+    if (contentType) headers.set("content-type", contentType);
     if (accept) headers.set("accept", accept);
     const idempotencyKey = request.headers.get("idempotency-key")?.trim().slice(0, 200);
     const clientRequestId = request.headers.get("x-client-request-id")?.trim().slice(0, 200);
@@ -364,7 +364,10 @@ async function readProxyRequestBody(request: Request, isMultipart: boolean): Pro
 
     const formData = await new Request(request.url, { method: request.method, headers: { "Content-Type": request.headers.get("content-type") || "" }, body: bytes }).formData();
     const cloned = await cloneFormData(formData);
-    return { body: cloned.body, pointsPayload: formDataFields(formData), bodyDigest: cloned.bodyDigest };
+    // 转发时保留原始 multipart 字节并原样携带原始 Content-Type（boundary 一致），
+    // 不能重新构造 FormData 后转发：手动 CONNECT 隧道不会自动补 boundary 头，上游会返回 invalid request body。
+    const rawBody = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
+    return { body: rawBody, pointsPayload: formDataFields(formData), bodyDigest: cloned.bodyDigest };
 }
 
 function formDataFields(formData: FormData): Record<string, string> {

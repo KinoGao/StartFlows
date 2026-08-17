@@ -169,7 +169,31 @@ export function resolveLogicalModelCapabilityProfile(binding: Pick<LogicalModelB
         supportsReferenceVideo: booleanValue(stored.supportsReferenceVideo, globalPreset?.supportsReferenceVideo ?? modelConfig?.supportsReferenceVideo ?? advanced?.supportsReferenceVideo),
         supportsReferenceAudio: booleanValue(stored.supportsReferenceAudio, globalPreset?.supportsReferenceAudio ?? modelConfig?.supportsReferenceAudio ?? advanced?.supportsReferenceAudio),
         maxReferenceImages: positiveInteger(stored.maxReferenceImages),
+        maxReferenceVideos: positiveInteger(stored.maxReferenceVideos),
+        maxReferenceAudios: positiveInteger(stored.maxReferenceAudios),
         aspectRatios: normalizeAspectRatios(stored.aspectRatios),
+        generationModes: normalizeStringList(stored.generationModes, 40),
+        resolutions: normalizeStringList(stored.resolutions, 24),
+        durations: normalizeIntegerList(stored.durations),
+        counts: normalizeIntegerList(stored.counts),
+        frameRates: normalizeIntegerList(stored.frameRates),
+        generateAudio: optionalBoolean(stored.generateAudio),
+        watermark: optionalBoolean(stored.watermark),
+        draft: optionalBoolean(stored.draft),
+        qualities: normalizeStringList(stored.qualities, 24),
+        maxOutputs: positiveInteger(stored.maxOutputs),
+        maxTotalImages: positiveInteger(stored.maxTotalImages),
+        sequentialImageGeneration: optionalBoolean(stored.sequentialImageGeneration),
+        interactiveEdit: optionalBoolean(stored.interactiveEdit),
+        documentationUrl: text(stored.documentationUrl, 400) || undefined,
+        officialTemplate: text(stored.officialTemplate, 120) || undefined,
+        voices: normalizeStringList(stored.voices, 80),
+        formats: normalizeStringList(stored.formats, 24),
+        speeds: normalizeIntegerList(stored.speeds),
+        instructions: optionalBoolean(stored.instructions),
+        provider: text(stored.provider, 80) || undefined,
+        requestAdapter: text(stored.requestAdapter, 80) || undefined,
+        modelPatterns: normalizeStringList(stored.modelPatterns, 120),
         minDurationSeconds: positiveNumber(stored.minDurationSeconds),
         maxDurationSeconds: positiveNumber(stored.maxDurationSeconds),
         maxBatchSize: positiveInteger(stored.maxBatchSize),
@@ -213,7 +237,31 @@ function normalizeStoredCapabilityProfile(value: unknown): LogicalModelCapabilit
         supportsReferenceVideo: optionalBoolean(input.supportsReferenceVideo),
         supportsReferenceAudio: optionalBoolean(input.supportsReferenceAudio),
         maxReferenceImages: positiveInteger(input.maxReferenceImages),
+        maxReferenceVideos: positiveInteger(input.maxReferenceVideos),
+        maxReferenceAudios: positiveInteger(input.maxReferenceAudios),
         aspectRatios: normalizeAspectRatios(input.aspectRatios),
+        generationModes: normalizeStringList(input.generationModes, 40),
+        resolutions: normalizeStringList(input.resolutions, 24),
+        durations: normalizeIntegerList(input.durations),
+        counts: normalizeIntegerList(input.counts),
+        frameRates: normalizeIntegerList(input.frameRates),
+        generateAudio: optionalBoolean(input.generateAudio),
+        watermark: optionalBoolean(input.watermark),
+        draft: optionalBoolean(input.draft),
+        qualities: normalizeStringList(input.qualities, 24),
+        maxOutputs: positiveInteger(input.maxOutputs),
+        maxTotalImages: positiveInteger(input.maxTotalImages),
+        sequentialImageGeneration: optionalBoolean(input.sequentialImageGeneration),
+        interactiveEdit: optionalBoolean(input.interactiveEdit),
+        documentationUrl: text(input.documentationUrl, 400) || undefined,
+        officialTemplate: text(input.officialTemplate, 120) || undefined,
+        voices: normalizeStringList(input.voices, 80),
+        formats: normalizeStringList(input.formats, 24),
+        speeds: normalizeIntegerList(input.speeds),
+        instructions: optionalBoolean(input.instructions),
+        provider: text(input.provider, 80) || undefined,
+        requestAdapter: text(input.requestAdapter, 80) || undefined,
+        modelPatterns: normalizeStringList(input.modelPatterns, 120),
         minDurationSeconds: positiveNumber(input.minDurationSeconds),
         maxDurationSeconds: positiveNumber(input.maxDurationSeconds),
         maxBatchSize: positiveInteger(input.maxBatchSize),
@@ -262,6 +310,25 @@ function normalizeAspectRatios(value: unknown) {
         ),
     ).slice(0, 12);
     return ratios.length ? ratios : undefined;
+}
+
+function normalizeStringList(value: unknown, maxLength: number) {
+    if (!Array.isArray(value)) return undefined;
+    const items = Array.from(
+        new Set(
+            value
+                .filter((item): item is string => typeof item === "string")
+                .map((item) => item.trim().slice(0, maxLength))
+                .filter(Boolean),
+        ),
+    ).slice(0, 64);
+    return items.length ? items : undefined;
+}
+
+function normalizeIntegerList(value: unknown) {
+    if (!Array.isArray(value)) return undefined;
+    const numbers = Array.from(new Set(value.map((item) => Math.floor(Number(item))).filter((item) => Number.isFinite(item) && item > 0 && item <= 1000000))).sort((left, right) => left - right);
+    return numbers.length ? numbers : undefined;
 }
 
 function normalizeModelName(value: string) {

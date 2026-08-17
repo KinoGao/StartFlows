@@ -1,11 +1,11 @@
 ---
 title: Docker 部署
-description: 使用 Docker Compose、PostgreSQL 和发布镜像部署 VOZEB PRO
+description: 使用 Docker Compose、PostgreSQL 和发布镜像部署 StartFlows
 ---
 
 # Docker 部署
 
-主 Compose 会启动 VOZEB PRO 和 PostgreSQL 16。正式部署前先复制并修改 `.env`。
+主 Compose 会启动 StartFlows 和 PostgreSQL 16。正式部署前先复制并修改 `.env`。
 
 ## 安装
 
@@ -37,7 +37,7 @@ docker compose ps
 
 ```text
 postgres -> PostgreSQL 16，数据卷 vozeb-pro-postgres
-app      -> VOZEB PRO standalone，数据卷 vozeb-pro-data
+app      -> StartFlows standalone，数据卷 vozeb-pro-data
 ```
 
 应用通过容器网络连接：

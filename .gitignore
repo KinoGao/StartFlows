@@ -14,6 +14,7 @@ playwright-report/
 .tmp/
 web/.tmp/
 .tmp_*.txt
+tmp-import/
 data/
 *.log
 *.tsbuildinfo

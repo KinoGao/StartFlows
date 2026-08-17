@@ -531,11 +531,16 @@ CREATE TABLE IF NOT EXISTS canvas_projects (
     user_id text NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     title text NOT NULL,
     project_json jsonb NOT NULL DEFAULT '{}'::jsonb,
+    surface text NOT NULL DEFAULT 'canvas',
     created_at timestamptz NOT NULL DEFAULT now(),
     updated_at timestamptz NOT NULL DEFAULT now()
 );
 
+ALTER TABLE canvas_projects ADD COLUMN IF NOT EXISTS surface text NOT NULL DEFAULT 'canvas';
+
 CREATE INDEX IF NOT EXISTS canvas_projects_user_updated_idx ON canvas_projects (user_id, updated_at DESC);
+
+CREATE INDEX IF NOT EXISTS canvas_projects_user_surface_updated_idx ON canvas_projects (user_id, surface, updated_at DESC);
 
 CREATE TABLE IF NOT EXISTS library_assets (
     id text PRIMARY KEY,

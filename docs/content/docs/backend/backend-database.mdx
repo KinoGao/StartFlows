@@ -1,11 +1,11 @@
 ---
 title: 数据库结构
-description: VOZEB PRO PostgreSQL 主库表结构与 Repository 边界
+description: StartFlows PostgreSQL 主库表结构与 Repository 边界
 ---
 
 # 数据库结构
 
-VOZEB PRO 商业版默认使用 PostgreSQL 作为主库。数据库初始化 SQL 由 `web/src/lib/server/database/schema.ts` 维护，服务端统一通过 `web/src/lib/server/database/` 下的 Repository 访问主库。
+StartFlows 商业版默认使用 PostgreSQL 作为主库。数据库初始化 SQL 由 `web/src/lib/server/database/schema.ts` 维护，服务端统一通过 `web/src/lib/server/database/` 下的 Repository 访问主库。
 
 ## 环境变量
 
@@ -27,13 +27,13 @@ VOZEB_PRO_DATABASE_PROVIDER=file
 
 ## 表名前缀
 
-VOZEB PRO 的 PostgreSQL 真实表名统一使用项目名前缀 `vozeb_pro_`。业务代码里仍然使用逻辑表名，例如 `users`、`billing_orders`、`generation_logs`；数据库执行层会统一映射为真实表名：
+StartFlows 的 PostgreSQL 真实表名统一使用项目名前缀 `vozeb_pro_`。业务代码里仍然使用逻辑表名，例如 `users`、`billing_orders`、`generation_logs`；数据库执行层会统一映射为真实表名：
 
 - `users` -> `vozeb_pro_users`
 - `billing_orders` -> `vozeb_pro_billing_orders`
 - `generation_logs` -> `vozeb_pro_generation_logs`
 
-这样同一个 PostgreSQL 数据库里即使存在其他业务表，也能清楚区分 VOZEB PRO 的数据。Schema 中的显式索引和会生成索引的命名唯一约束也必须使用 `vozeb_pro_` 前缀，避免与同一 `public` Schema 的其他应用对象重名。无前缀表不会被自动删除；当前部署和后续读写只使用 `vozeb_pro_` 前缀表。
+这样同一个 PostgreSQL 数据库里即使存在其他业务表，也能清楚区分 StartFlows 的数据。Schema 中的显式索引和会生成索引的命名唯一约束也必须使用 `vozeb_pro_` 前缀，避免与同一 `public` Schema 的其他应用对象重名。无前缀表不会被自动删除；当前部署和后续读写只使用 `vozeb_pro_` 前缀表。
 
 ## 核心表
 
@@ -76,7 +76,7 @@ VOZEB PRO 的 PostgreSQL 真实表名统一使用项目名前缀 `vozeb_pro_`。
 - `vozeb_pro_creative_messages`：会话消息，按会话内连续 `sequence` 排序，保存角色、运行状态、正文、Run 关联和结构化 metadata。工作台打开历史时默认读取最新 50 条，并以 `beforeSequence` 向前分页，禁止固定读取最早消息导致新消息被截断；Agent 上下文已保存滚动摘要后只读取 `contextSummaryThroughSequence` 之后的消息，避免长会话重复加载已压缩历史。
 - `vozeb_pro_creative_assets`：稳定创作资产，保存 `assetId`、来源 Run/任务/消息、父资产、顺序、文本内容或持久媒体位置及媒体信息；不保存 base64。
 - `vozeb_pro_creative_run_events`：Agent Run 持久事件，使用递增 `bigserial` ID 为 SSE 断线续传提供精确游标；PostgreSQL 事务写入事件后发送 `vozeb_pro_run_events` 通知唤醒其他实例，通知不承载业务数据，丢失时仍从本表恢复。
-- `vozeb_pro_canvas_projects`：Canvas 项目聚合快照，保存用户、标题、创作会话 ID、节点、连线、视口和项目助手会话；列表查询只投影标题、时间和节点/连线计数，进入单项目后才读取完整快照。交互保存按用户、项目、`updatedAt` 和 mutation ID 执行单次条件更新，PostgreSQL 在 JSONB 内按稳定实体 ID 原位合并并保持数组顺序，文件 Provider 在项目锁内应用同一 mutation；幂等标识仅为服务端内部字段，不进入公开项目响应。
+- `vozeb_pro_canvas_projects`：Canvas 项目聚合快照，保存用户、标题、创作会话 ID、节点、连线、视口和项目助手会话；`surface` 列区分画布形态（`canvas` = 创作画布，`smart` = 智能画布），列表与首页概览按形态过滤。列表查询只投影标题、时间和节点/连线计数，进入单项目后才读取完整快照。交互保存按用户、项目、`updatedAt` 和 mutation ID 执行单次条件更新，PostgreSQL 在 JSONB 内按稳定实体 ID 原位合并并保持数组顺序，文件 Provider 在项目锁内应用同一 mutation；幂等标识仅为服务端内部字段，不进入公开项目响应。
 - `vozeb_pro_library_assets`：用户素材库聚合记录，保存文本或服务器媒体引用、标签、来源和备注；不保存媒体 base64，素材页按用户、类型、关键词和页码在服务端裁剪。
 - `vozeb_pro_local_media_assets`：图片、视频和音频的统一媒体登记表，保存稳定站内 `storage_key`、本地/对象存储 Provider、对象存储配置与对象 Key、同步时间、临时/长期分类、用户归属、原文件名、来源、会话/Run/任务/项目关联、MIME、大小和过期时间；媒体读取与删除以该登记和业务引用检查为权限边界。
 - `vozeb_pro_drama_projects`：短剧项目聚合快照，保存用户、标题、状态和完整 `project_json`；项目内包含创作会话 ID、多集、角色/场景/道具/线索、内容审核状态、分镜及图片、视频、音频、整集合成任务状态，并按用户与更新时间建立列表索引。

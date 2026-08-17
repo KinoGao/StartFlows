@@ -39,10 +39,12 @@ export default function CanvasPage() {
 }
 
 import { useCanvasPageController } from "./use-canvas-page-controller";
+import { useCanvasHomePath } from "../canvas-home-path";
 
 function VozebProCanvasPage() {
     const [nodeCreatePosition, setNodeCreatePosition] = useState<Position | null>(null);
     const [interactionMode, setInteractionMode] = useState<CanvasInteractionMode>("pan");
+    const canvasHomePath = useCanvasHomePath();
     const controller = useCanvasPageController();
     const {
         message,
@@ -266,8 +268,8 @@ function VozebProCanvasPage() {
                 projectId={projectId}
                 projectTitle={currentProject?.title || "未命名画布"}
                 nodes={nodes}
-                onOpenProject={(id) => router.push(`/canvas/${id}`)}
-                onOpenProjects={() => router.push("/canvas")}
+                onOpenProject={(id) => router.push(`${canvasHomePath}/${id}`)}
+                onOpenProjects={() => router.push(canvasHomePath)}
                 onCreateProject={createAndOpenProject}
                 onInsertAsset={handleAssetInsert}
                 onInsertPrompt={insertAssistantText}

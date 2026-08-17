@@ -24,6 +24,9 @@ export type CanvasProjectSummary = Pick<CanvasProject, "id" | "sourceHandoffId" 
 
 export type CanvasProjectSummaryPage = { projects: CanvasProjectSummary[]; total: number; page: number; pageSize: number };
 
+/** 画布形态：canvas = 创作画布（FlowCanvas LeaferJS），smart = 智能画布（VOZEB 原画布）。 */
+export type CanvasSurface = "canvas" | "smart";
+
 export type CanvasProjectMutation = {
     mutationId: string;
     baseUpdatedAt: string;

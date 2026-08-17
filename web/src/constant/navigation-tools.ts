@@ -1,4 +1,4 @@
-import { BookMarked, Clapperboard, Compass, FileText, GalleryVerticalEnd, Images, Maximize2, Sparkles, UserRound } from "lucide-react";
+import { BookMarked, BrainCircuit, Clapperboard, Compass, FileText, GalleryVerticalEnd, Images, Maximize2, Sparkles, UserRound } from "lucide-react";
 
 export const navigationGroups = [
     { id: "create", label: "创作" },
@@ -24,10 +24,17 @@ export const navigationTools = [
     },
     {
         slug: "canvas",
-        label: "画布",
+        label: "创作画布",
         description: "节点式多媒体创作",
         group: "projects",
         icon: Maximize2,
+    },
+    {
+        slug: "smart-canvas",
+        label: "智能画布",
+        description: "智能体协同画布",
+        group: "projects",
+        icon: BrainCircuit,
     },
     {
         slug: "drama",

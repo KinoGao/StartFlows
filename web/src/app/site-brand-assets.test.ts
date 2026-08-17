@@ -19,4 +19,10 @@ describe("default StartFlows brand assets", () => {
         expect(logo.subarray(0, 4).equals(PNG_MAGIC)).toBe(true);
         expect(icon.subarray(0, 4).equals(PNG_MAGIC)).toBe(true);
     });
+
+    it("keeps the docs site logo identical to the web logo", async () => {
+        const [webLogo, docsLogo] = await Promise.all([readFile(resolve(process.cwd(), "public/logo.png")), readFile(resolve(process.cwd(), "../docs/public/logo.png"))]);
+
+        expect(docsLogo.equals(webLogo)).toBe(true);
+    });
 });

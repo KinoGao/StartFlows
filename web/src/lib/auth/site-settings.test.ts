@@ -8,6 +8,14 @@ describe("site settings", () => {
         expect(normalizeSiteSettings({ logoUrl: "/custom-logo.svg" }).iconUrl).toBe(DEFAULT_SITE_SETTINGS.iconUrl);
     });
 
+    it("keeps the bundled SEO keywords distinct from the description after normalization", () => {
+        const settings = normalizeSiteSettings(DEFAULT_SITE_SETTINGS);
+
+        expect(settings.seoKeywords).toBe("StartFlows,AI Agent,AI 绘图,AI 视频,画布,短剧,提示词库,素材管理");
+        expect(settings.seoDescription).toContain("工作台");
+        expect(settings.seoKeywords).not.toBe(settings.seoDescription);
+    });
+
     it("accepts a configured browser icon independently from the logo", () => {
         const settings = normalizeSiteSettings({ logoUrl: "/brand.svg", iconUrl: "https://cdn.example.com/favicon.ico" });
 

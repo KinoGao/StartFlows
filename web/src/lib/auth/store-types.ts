@@ -95,7 +95,31 @@ export type LogicalModelCapabilityProfile = {
     supportsReferenceVideo?: boolean;
     supportsReferenceAudio?: boolean;
     maxReferenceImages?: number;
+    maxReferenceVideos?: number;
+    maxReferenceAudios?: number;
     aspectRatios?: string[];
+    generationModes?: string[];
+    resolutions?: string[];
+    durations?: number[];
+    counts?: number[];
+    frameRates?: number[];
+    generateAudio?: boolean;
+    watermark?: boolean;
+    draft?: boolean;
+    qualities?: string[];
+    maxOutputs?: number;
+    maxTotalImages?: number;
+    sequentialImageGeneration?: boolean;
+    interactiveEdit?: boolean;
+    documentationUrl?: string;
+    officialTemplate?: string;
+    voices?: string[];
+    formats?: string[];
+    speeds?: number[];
+    instructions?: boolean;
+    provider?: string;
+    requestAdapter?: string;
+    modelPatterns?: string[];
     minDurationSeconds?: number;
     maxDurationSeconds?: number;
     maxBatchSize?: number;
@@ -326,7 +350,7 @@ export const DEFAULT_SITE_SOCIALS: SiteSocialSettings = {
 };
 
 export const DEFAULT_SITE_FRIEND_LINKS: SiteFriendLink[] = [
-    { id: "vozeb-pro-home", label: "VOZEB PRO", url: "https://www.vozeb.com/", enabled: true },
+    { id: "vozeb-pro-home", label: "StartFlows", url: "https://www.vozeb.com/", enabled: true },
     { id: "qq-vozeb-open-source", label: "VOZEB 开源交流 QQ 群", url: VOZEB_QQ_GROUP_URL, enabled: true },
     { id: "linux-do", label: "Linux.do", url: "https://linux.do/", enabled: true },
 ];
