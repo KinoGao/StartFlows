@@ -3435,28 +3435,32 @@ function LeaferCanvasPage() {
     const upscaleImageNode = useCallback(async (node: CanvasNodeData, params: CanvasImageUpscaleParams) => {
         if (!node.metadata?.content && !node.metadata?.storageKey) return;
         setUpscaleNodeId(null);
-        const url = await resolveNodeContent(node);
-        const upscaled = await upscaleDataUrl(url, params);
-        const image = await uploadImage(upscaled);
-        const size = fitNodeSize(image.width, image.height);
-        const child: CanvasNodeData = {
-            ...createCanvasNode(
-                CanvasNodeType.Image,
-                { x: node.position.x + node.width + 96 + size.width / 2, y: node.position.y + size.height / 2 },
-                {
-                    ...imageMetadata(image),
-                    prompt: node.metadata?.prompt,
-                },
-            ),
-            position: { x: node.position.x + node.width + 96, y: node.position.y },
-            width: size.width,
-            height: size.height,
-        };
-        setNodes((prev) => [...prev, child]);
-        setConnections((prev) => [...prev, createCanvasConnection(node.id, child.id)]);
-        setSelectedNodeIds(new Set([child.id]));
-        setDialogNodeId(child.id);
-    }, [createCanvasConnection, createCanvasNode]);
+        try {
+            const url = await resolveNodeContent(node);
+            const upscaled = await upscaleDataUrl(url, params);
+            const image = await uploadImage(upscaled);
+            const size = fitNodeSize(image.width, image.height);
+            const child: CanvasNodeData = {
+                ...createCanvasNode(
+                    CanvasNodeType.Image,
+                    { x: node.position.x + node.width + 96 + size.width / 2, y: node.position.y + size.height / 2 },
+                    {
+                        ...imageMetadata(image),
+                        prompt: node.metadata?.prompt,
+                    },
+                ),
+                position: { x: node.position.x + node.width + 96, y: node.position.y },
+                width: size.width,
+                height: size.height,
+            };
+            setNodes((prev) => [...prev, child]);
+            setConnections((prev) => [...prev, createCanvasConnection(node.id, child.id)]);
+            setSelectedNodeIds(new Set([child.id]));
+            setDialogNodeId(child.id);
+        } catch (error) {
+            message.error(error instanceof Error ? error.message : "高清放大失败");
+        }
+    }, [createCanvasConnection, createCanvasNode, message]);
 
     const runImageReferenceEdit = useCallback(
         async (node: CanvasNodeData, prompt: string) => {
