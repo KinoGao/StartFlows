@@ -98,6 +98,8 @@ export type CanvasScriptBeat = {
     referenceNodeIds?: string[];
     /** 分镜图提示词覆盖：留空时按画面描述 + 角色/场景资产描述自动合成 */
     imagePrompt?: string;
+    /** 视频运动提示词覆盖：留空时回退整段导出文本（免费拼接路径） */
+    videoPrompt?: string;
 };
 
 /** 脚本拆解出的可复用资产（角色/场景/道具），生成提示词时引用其描述 */

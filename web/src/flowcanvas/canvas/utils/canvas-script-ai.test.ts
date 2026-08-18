@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
 
-import { buildScriptAiPrompt, buildScriptBeatPrompt, parseScriptAiResponse, resolveScriptBeatImagePrompt } from "./canvas-script-ai";
+import { buildScriptAiPrompt, buildScriptBeatPrompt, parseScriptAiResponse, resolveScriptBeatImagePrompt, resolveScriptBeatVideoPrompt, parseScriptBeatPromptsResponse } from "./canvas-script-ai";
 
 const SAMPLE_JSON = JSON.stringify({
     assets: [
@@ -96,4 +96,16 @@ test("resolveScriptBeatImagePrompt 优先用户覆盖，否则按分镜字段自
     const { beats, assets } = parseScriptAiResponse(SAMPLE_JSON);
     assert.equal(resolveScriptBeatImagePrompt({ ...beats[0], imagePrompt: "  自定义帧图  " }, assets), "自定义帧图");
     assert.equal(resolveScriptBeatImagePrompt(beats[0], assets), buildScriptBeatPrompt(beats[0], assets));
+});
+
+test("resolveScriptBeatVideoPrompt 优先用户覆盖，否则回退导出文本", () => {
+    const beat = { id: "b1", title: "推门", content: "主角推门而入", prompt: "", shotType: "中景" };
+    assert.equal(resolveScriptBeatVideoPrompt({ ...beat, videoPrompt: "  起始状态：门紧闭  " }), "起始状态：门紧闭");
+    assert.ok(resolveScriptBeatVideoPrompt(beat).includes("主角推门而入"));
+});
+
+test("parseScriptBeatPromptsResponse 容忍围栏并提取双轨提示词", () => {
+    assert.deepEqual(parseScriptBeatPromptsResponse('```json\n{"imagePrompt":"帧图","videoPrompt":"运动"}\n```'), { imagePrompt: "帧图", videoPrompt: "运动" });
+    assert.deepEqual(parseScriptBeatPromptsResponse('{"imagePrompt":"  ","videoPrompt":"运动"}'), { videoPrompt: "运动" });
+    assert.deepEqual(parseScriptBeatPromptsResponse("无法识别"), {});
 });

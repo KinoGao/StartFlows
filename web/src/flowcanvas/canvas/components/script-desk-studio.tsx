@@ -1,10 +1,10 @@
 import { useMemo, useState } from "react";
-import { AutoComplete, Button, Dropdown, Select } from "antd";
+import { AutoComplete, Button, Checkbox, Dropdown, Modal, Select } from "antd";
 import { ChevronDown, ChevronRight, Clapperboard, Download, Image as ImageIcon, ListOrdered, Plus, Sparkles, Upload, Workflow, X } from "lucide-react";
 
 import type { canvasThemes } from "@/flowcanvas/lib/canvas-theme";
 import { buildScriptBeats } from "../utils/canvas-script-beats";
-import { resolveScriptBeatImagePrompt } from "../utils/canvas-script-ai";
+import { resolveScriptBeatImagePrompt, resolveScriptBeatVideoPrompt } from "../utils/canvas-script-ai";
 import { resolveScriptBeatReferenceIds } from "../utils/canvas-script-references";
 import type { CanvasNodeData, CanvasNodeMetadata, CanvasScriptAct, CanvasScriptAsset, CanvasScriptBeat } from "../types";
 
@@ -52,6 +52,8 @@ export function ScriptDeskStudio({
     onAssetRemove,
     onGenerateBeat,
     onGenerateAsset,
+    onGenerateAllAssets,
+    onSynthesizeBeat,
     onExportBeats,
     outputStates,
     referenceOptions,
@@ -73,7 +75,9 @@ export function ScriptDeskStudio({
     onAssetRemove: (assetId: string) => void;
     onGenerateBeat: (beat: CanvasScriptBeat, index: number, target: "video" | "comfyui" | "image") => void;
     onGenerateAsset: (asset: CanvasScriptAsset, target: "image" | "comfyui") => void;
-    onExportBeats: (target: "video" | "comfyui" | "image") => void;
+    onGenerateAllAssets: () => void;
+    onSynthesizeBeat: (beat: CanvasScriptBeat) => void | Promise<void>;
+    onExportBeats: (target: "video" | "comfyui" | "image", beatIds: string[]) => void;
     outputStates: Record<string, ScriptOutputState>;
     referenceOptions: ScriptReferenceOption[];
 }) {
@@ -84,6 +88,8 @@ export function ScriptDeskStudio({
     const fieldStyle = { background: theme.node.fill, borderColor: theme.toolbar.border, color: theme.node.text };
     const [expandedBeatId, setExpandedBeatId] = useState<string | null>(null);
     const [actTitleDrafts, setActTitleDrafts] = useState<Record<string, string>>({});
+    const [synthPendingId, setSynthPendingId] = useState<string | null>(null);
+    const [exportPlan, setExportPlan] = useState<{ target: "video" | "comfyui" | "image"; selectedIds: string[] } | null>(null);
     const [newAsset, setNewAsset] = useState<{ kind: CanvasScriptAsset["kind"]; name: string }>({ kind: "character", name: "" });
     const updateBody = (scriptBody: string) => onChange({ scriptBody, content: scriptBody, status: scriptBody.trim() ? "success" : "idle" });
     // 正文含明确镜行编号（SH/SC/镜 N）时可本地重拆，不消耗模型
@@ -140,6 +146,14 @@ export function ScriptDeskStudio({
     }, [acts, beats]);
     const referenceOptionById = useMemo(() => new Map(referenceOptions.map((option) => [option.id, option])), [referenceOptions]);
     const isReferenceOption = (id: string) => referenceOptionById.has(id);
+    // 资产缺失检测：有输出映射且输出节点是可用图片（有内容）才算已有设定图
+    const missingAssetCount = useMemo(() => {
+        const outputs = node.metadata?.scriptAssetOutputs ?? {};
+        return assets.filter((asset) => {
+            const outId = outputs[asset.id];
+            return !outId || !referenceOptionById.has(outId);
+        }).length;
+    }, [assets, node.metadata?.scriptAssetOutputs, referenceOptionById]);
 
     const addAct = () => {
         onChange({ scriptActs: [...acts, { id: `act-${Date.now()}`, title: `第${acts.length + 1}幕` }] });
@@ -179,6 +193,7 @@ export function ScriptDeskStudio({
         const frameState = outputStates[`${beat.id}:frame`] || "idle";
         const frameStatus = SCRIPT_OUTPUT_STATUS[frameState];
         const autoImagePrompt = resolveScriptBeatImagePrompt({ ...beat, imagePrompt: undefined }, assets);
+        const autoVideoPrompt = resolveScriptBeatVideoPrompt({ ...beat, videoPrompt: undefined });
         return (
             <div key={beat.id} className="rounded-xl border" style={{ borderColor: theme.toolbar.border, background: theme.node.fill }}>
                 <div className="flex items-center gap-2 px-3 pt-2.5">
@@ -264,6 +279,33 @@ export function ScriptDeskStudio({
                             style={fieldStyle}
                             aria-label="分镜图提示词"
                         />
+                        <textarea
+                            className="thin-scrollbar h-14 w-full resize-none rounded-lg border px-2.5 py-1.5 text-xs leading-5 outline-none placeholder:opacity-35"
+                            value={beat.videoPrompt || ""}
+                            placeholder={`视频运动提示词（留空自动拼接）：${autoVideoPrompt}`}
+                            onChange={(event) => patchBeat(beat, { videoPrompt: event.target.value || undefined })}
+                            style={fieldStyle}
+                            aria-label="视频运动提示词"
+                        />
+                        <div className="flex items-center justify-between gap-2">
+                            <span className="min-w-0 truncate text-[11px] opacity-40">运动提示词按 起始状态 → 按秒动作 → 结束状态 → 音效/配乐 结构撰写</span>
+                            <Button
+                                size="small"
+                                icon={<Sparkles className="size-3.5" />}
+                                loading={synthPendingId === beat.id}
+                                disabled={!beat.content.trim() && !beat.title.trim()}
+                                onClick={async () => {
+                                    setSynthPendingId(beat.id);
+                                    try {
+                                        await onSynthesizeBeat(beat);
+                                    } finally {
+                                        setSynthPendingId(null);
+                                    }
+                                }}
+                            >
+                                智能合成提示词
+                            </Button>
+                        </div>
                         <input
                             className="h-8 w-full rounded-lg border px-2.5 text-xs outline-none placeholder:opacity-35"
                             value={beat.dialogue || ""}
@@ -365,7 +407,7 @@ export function ScriptDeskStudio({
                                 { key: "video", label: "导出为视频节点", icon: <Clapperboard className="size-3.5" /> },
                                 { key: "comfyui", label: "导出为 ComfyUI 节点", icon: <Workflow className="size-3.5" /> },
                             ],
-                            onClick: ({ key }) => onExportBeats(key as "video" | "comfyui" | "image"),
+                            onClick: ({ key }) => setExportPlan({ target: key as "video" | "comfyui" | "image", selectedIds: beats.map((beat) => beat.id) }),
                         }}
                         disabled={!beats.length}
                     >
@@ -395,6 +437,14 @@ export function ScriptDeskStudio({
                             <div className="text-xs font-medium opacity-65">资产（人物 / 道具 / 场景）</div>
                             <div className="text-[11px] opacity-45">{assets.length} 项</div>
                         </div>
+                        {missingAssetCount ? (
+                            <div className="mb-2 flex items-center justify-between rounded-lg border px-2.5 py-1.5 text-[11px]" style={{ borderColor: theme.toolbar.border, background: theme.ui.controlFill }}>
+                                <span className="opacity-70">检测到 {missingAssetCount} 个资产还没有设定图</span>
+                                <button type="button" className="opacity-70 transition hover:opacity-100" onClick={onGenerateAllAssets}>
+                                    一键补齐
+                                </button>
+                            </div>
+                        ) : null}
                         <div className="thin-scrollbar max-h-72 space-y-2 overflow-y-auto pr-1">
                             {assets.map((asset) => {
                                 const state = outputStates[asset.id] || "idle";
@@ -507,6 +557,51 @@ export function ScriptDeskStudio({
                     </div>
                 </div>
             </div>
+            <Modal
+                open={Boolean(exportPlan)}
+                title={exportPlan?.target === "image" ? "批量导出分镜图节点" : exportPlan?.target === "video" ? "批量导出视频节点" : "批量导出 ComfyUI 节点"}
+                onCancel={() => setExportPlan(null)}
+                okText={exportPlan ? `确认导出（${exportPlan.selectedIds.length}）` : "确认导出"}
+                okButtonProps={{ disabled: !exportPlan?.selectedIds.length }}
+                onOk={() => {
+                    if (!exportPlan) return;
+                    onExportBeats(exportPlan.target, exportPlan.selectedIds);
+                    setExportPlan(null);
+                }}
+            >
+                {exportPlan ? (
+                    <div className="space-y-2">
+                        <div className="text-xs opacity-55">勾选要导出的分镜；导出只创建节点，生成仍需在确认卡片中提交。帧图/垫图状态供参考，缺失可之后补齐。</div>
+                        <div className="thin-scrollbar max-h-72 space-y-1 overflow-y-auto pr-1">
+                            {beats.map((beat, index) => {
+                                const checked = exportPlan.selectedIds.includes(beat.id);
+                                const frameId = node.metadata?.scriptBeatFrames?.[beat.id];
+                                const frameReady = Boolean(frameId && referenceOptionById.has(frameId));
+                                const refCount = resolveScriptBeatReferenceIds(beat, assets, node.metadata?.scriptAssetOutputs ?? {}, (id) => referenceOptionById.has(id)).length;
+                                const promptsReady = Boolean(beat.imagePrompt || beat.videoPrompt);
+                                return (
+                                    <label key={beat.id} className="flex cursor-pointer items-center gap-2 rounded-lg border px-2.5 py-1.5 text-xs" style={{ borderColor: theme.toolbar.border, background: theme.node.fill }}>
+                                        <Checkbox
+                                            checked={checked}
+                                            onChange={(event) =>
+                                                setExportPlan((current) =>
+                                                    current ? { ...current, selectedIds: event.target.checked ? [...current.selectedIds, beat.id] : current.selectedIds.filter((id) => id !== beat.id) } : current,
+                                                )
+                                            }
+                                        />
+                                        <span className="w-10 shrink-0 opacity-50">镜 {index + 1}</span>
+                                        <span className="min-w-0 flex-1 truncate">{beat.title}</span>
+                                        <span className="shrink-0 opacity-55">
+                                            {frameReady ? "帧图✓" : "无帧图"} · 垫图{refCount}
+                                            {promptsReady ? " · 提示词✓" : ""}
+                                        </span>
+                                    </label>
+                                );
+                            })}
+                        </div>
+                    </div>
+                ) : null}
+            </Modal>
         </div>
     );
 }

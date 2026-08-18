@@ -59,7 +59,7 @@ import { buildGroupExecutionPlan, collectGroupMemberIds, isGroupExecutableNode }
 import { buildGridBeatPrompt, buildScriptBeats, buildScriptBeatsWithActs } from "../utils/canvas-script-beats";
 import { buildScriptAiPrompt, buildScriptBeatExportText, buildScriptBeatPrompt, parseScriptAiResponse } from "../utils/canvas-script-ai";
 import { buildAssetPrompt } from "../utils/canvas-script-ai";
-import { resolveScriptBeatImagePrompt } from "../utils/canvas-script-ai";
+import { resolveScriptBeatImagePrompt, buildScriptBeatPromptsSynthPrompt, parseScriptBeatPromptsResponse, resolveScriptBeatVideoPrompt } from "../utils/canvas-script-ai";
 import { composeScriptBeatVideoReferenceIds, deriveScriptBeatVideoMode, resolveScriptBeatReferenceIds } from "../utils/canvas-script-references";
 import { toFetchableMediaUrl } from "../utils/canvas-media-fetch";
 import { ScriptDeskStudio, type ScriptOutputState } from "../components/script-desk-studio";
@@ -4838,7 +4838,7 @@ function LeaferCanvasPage() {
             const spec = NODE_DEFAULT_SIZE[type];
             const frameColumnWidth = NODE_DEFAULT_SIZE[CanvasNodeType.Image].width + 96;
             const position = { x: scriptNode.position.x + scriptNode.width + 96 + frameColumnWidth, y: scriptNode.position.y + beatIndex * (spec.height + 36) };
-            const prompt = buildScriptBeatExportText(beat);
+            const prompt = resolveScriptBeatVideoPrompt(beat);
             const metadata: CanvasNodeMetadata =
                 target === "comfyui"
                     ? { status: NODE_STATUS_IDLE, composerContent: prompt, generationMode: "comfyui", comfyCapability: "text-to-video", comfyWorkflowId: comfyui.defaultWorkflowId }
@@ -4955,7 +4955,8 @@ function LeaferCanvasPage() {
             const type = target === "comfyui" ? CanvasNodeType.ComfyUI : CanvasNodeType.Image;
             const spec = NODE_DEFAULT_SIZE[type];
             const outputCount = Object.keys(scriptNode.metadata?.scriptAssetOutputs ?? {}).length;
-            const position = { x: scriptNode.position.x + scriptNode.width + 96, y: scriptNode.position.y + 200 + outputCount * (spec.height + 36) };
+            // 资产设定图是脚本的输入锚点，放在脚本节点左侧列，避免与右侧分镜帧/视频输出重叠
+            const position = { x: scriptNode.position.x - spec.width - 96, y: scriptNode.position.y + outputCount * (spec.height + 36) };
             const prompt = buildAssetPrompt(asset);
             const metadata: CanvasNodeMetadata =
                 target === "comfyui"
@@ -4979,13 +4980,88 @@ function LeaferCanvasPage() {
         [comfyui.defaultWorkflowId, createCanvasConnection, createCanvasNode, handleConfigNodeChange],
     );
 
+    // 一键补齐：为所有还没有可用设定图的资产创建图片节点（逐个 composer 确认后才生成）
+    const generateAllScriptAssetNodes = useCallback(
+        (scriptNode: CanvasNodeData) => {
+            const assets = scriptNode.metadata?.scriptAssets ?? [];
+            const outputs = scriptNode.metadata?.scriptAssetOutputs ?? {};
+            const nodeById = new Map(nodesRef.current.map((item) => [item.id, item]));
+            const missing = assets.filter((asset) => {
+                const out = outputs[asset.id] ? nodeById.get(outputs[asset.id]) : undefined;
+                return !(out && out.type === CanvasNodeType.Image && (out.metadata?.content || out.metadata?.storageKey));
+            });
+            if (!missing.length) {
+                message.info("所有资产都已有设定图");
+                return;
+            }
+            const spec = NODE_DEFAULT_SIZE[CanvasNodeType.Image];
+            const baseCount = Object.keys(outputs).length;
+            const newNodes = missing.map((asset, index) => {
+                const position = { x: scriptNode.position.x - spec.width - 96, y: scriptNode.position.y + (baseCount + index) * (spec.height + 36) };
+                const prompt = buildAssetPrompt(asset);
+                return {
+                    assetId: asset.id,
+                    ...createCanvasNode(CanvasNodeType.Image, { x: position.x + spec.width / 2, y: position.y + spec.height / 2 }, { status: NODE_STATUS_IDLE, prompt, composerContent: prompt, generationMode: "image", generationType: "generation", model: effectiveConfig.imageModel || effectiveConfig.model }),
+                    position,
+                    width: spec.width,
+                    height: spec.height,
+                } satisfies CanvasNodeData & { assetId: string };
+            });
+            const newConnections = newNodes.map((node) => createCanvasConnection(scriptNode.id, node.id));
+            nodesRef.current = [...nodesRef.current, ...newNodes];
+            connectionsRef.current = [...connectionsRef.current, ...newConnections];
+            setNodes((prev) => [...prev, ...newNodes.map(({ assetId: _assetId, ...node }) => node)]);
+            setConnections((prev) => [...prev, ...newConnections]);
+            handleConfigNodeChange(scriptNode.id, {
+                scriptAssetOutputs: { ...outputs, ...Object.fromEntries(newNodes.map((node) => [node.assetId, node.id])) },
+                scriptOutputIds: [...(scriptNode.metadata?.scriptOutputIds ?? []), ...newNodes.map((node) => node.id)],
+            });
+            setSelectedNodeIds(new Set(newNodes.map((node) => node.id)));
+            setSelectedConnectionId(null);
+            message.success(`已为 ${newNodes.length} 个资产创建设定图节点，在画布上逐个确认后生成`);
+        },
+        [createCanvasConnection, createCanvasNode, effectiveConfig.imageModel, effectiveConfig.model, handleConfigNodeChange, message],
+    );
+
+    // 智能合成：用文本模型为单个分镜同时产出分镜图提示词与结构化视频运动提示词
+    const synthesizeScriptBeatPrompts = useCallback(
+        async (scriptNode: CanvasNodeData, beat: CanvasScriptBeat) => {
+            const requestConfig = { ...effectiveConfig, model: effectiveConfig.textModel || effectiveConfig.model };
+            if (!isAiConfigReady(requestConfig, requestConfig.model)) {
+                openConfigDialog(true);
+                return;
+            }
+            const hide = message.loading(`正在智能合成「${beat.title}」提示词...`, 0);
+            try {
+                const messages: AiTextMessage[] = [{ role: "user", content: [{ type: "text", text: buildScriptBeatPromptsSynthPrompt(beat, scriptNode.metadata?.scriptAssets ?? []) }] }];
+                const answer = await requestImageQuestion(requestConfig, messages, () => {});
+                const { imagePrompt, videoPrompt } = parseScriptBeatPromptsResponse(answer);
+                if (!imagePrompt && !videoPrompt) throw new Error("模型没有返回可识别的提示词，请确认当前文本模型可用后重试");
+                handleConfigNodeChange(scriptNode.id, {
+                    scriptBeats: (scriptNode.metadata?.scriptBeats ?? []).map((item) => (item.id === beat.id ? { ...item, ...(imagePrompt ? { imagePrompt } : {}), ...(videoPrompt ? { videoPrompt } : {}) } : item)),
+                });
+                message.success("已合成分镜图与视频运动提示词");
+            } catch (error) {
+                message.error(error instanceof Error ? error.message : "提示词合成失败");
+            } finally {
+                hide();
+            }
+        },
+        [effectiveConfig, isAiConfigReady, openConfigDialog, message, handleConfigNodeChange],
+    );
+
     const exportScriptBeatNodes = useCallback(
-        (scriptNode: CanvasNodeData, target: "video" | "comfyui" | "image") => {
+        (scriptNode: CanvasNodeData, target: "video" | "comfyui" | "image", beatIds?: readonly string[]) => {
             // 与工作台分镜表同源：未保存 scriptBeats 时按正文实时解析（含幕/场/镜结构）
             const body = scriptNode.metadata?.scriptBody?.trim() || scriptNode.metadata?.content?.trim() || "";
-            const beats = scriptNode.metadata?.scriptBeats?.length ? scriptNode.metadata.scriptBeats : buildScriptBeats(body);
-            if (!beats.length) {
+            const allBeats = scriptNode.metadata?.scriptBeats?.length ? scriptNode.metadata.scriptBeats : buildScriptBeats(body);
+            const beats = beatIds?.length ? allBeats.filter((beat) => beatIds.includes(beat.id)) : allBeats;
+            if (!allBeats.length) {
                 message.warning("分镜表为空，无法导出");
+                return;
+            }
+            if (!beats.length) {
+                message.warning("请先勾选要导出的分镜");
                 return;
             }
             const isImage = target === "image";
@@ -5016,7 +5092,7 @@ function LeaferCanvasPage() {
             const scriptAssetOutputs = scriptNode.metadata?.scriptAssetOutputs ?? {};
             const scriptBeatFrames = scriptNode.metadata?.scriptBeatFrames ?? {};
             const exportedNodes = beats.map((beat) => {
-                const exportText = isImage ? resolveScriptBeatImagePrompt(beat, scriptAssets) : buildScriptBeatExportText(beat);
+                const exportText = isImage ? resolveScriptBeatImagePrompt(beat, scriptAssets) : resolveScriptBeatVideoPrompt(beat);
                 const referenceIds = isImage
                     ? resolveScriptBeatReferenceIds(beat, scriptAssets, scriptAssetOutputs, (id) => usableImageIds.has(id))
                     : composeScriptBeatVideoReferenceIds(scriptBeatFrames[beat.id], beat, scriptAssets, scriptAssetOutputs, (id) => usableImageIds.has(id) && !oldExportIds.has(id));
@@ -6195,7 +6271,9 @@ function LeaferCanvasPage() {
                         onAssetRemove={(assetId) => handleScriptAssetRemove(scriptStudioNode, assetId)}
                         onGenerateBeat={(beat, index, target) => (target === "image" ? createScriptBeatFrameNode(scriptStudioNode, beat, index) : createScriptBeatNode(scriptStudioNode, beat, index, target))}
                         onGenerateAsset={(asset, target) => generateScriptAssetNode(scriptStudioNode, asset, target)}
-                        onExportBeats={(target) => exportScriptBeatNodes(scriptStudioNode, target)}
+                        onGenerateAllAssets={() => generateAllScriptAssetNodes(scriptStudioNode)}
+                        onSynthesizeBeat={(beat) => synthesizeScriptBeatPrompts(scriptStudioNode, beat)}
+                        onExportBeats={(target, beatIds) => exportScriptBeatNodes(scriptStudioNode, target, beatIds)}
                         outputStates={scriptOutputStates}
                         referenceOptions={scriptReferenceOptions}
                     />

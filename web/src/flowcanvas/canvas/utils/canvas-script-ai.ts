@@ -152,6 +152,49 @@ export function resolveScriptBeatImagePrompt(beat: Pick<CanvasScriptBeat, "image
     return beat.imagePrompt?.trim() || buildScriptBeatPrompt(beat, assets);
 }
 
+/** 视频运动提示词：用户显式覆盖优先，否则回退整段导出文本（免费拼接路径）。 */
+export function resolveScriptBeatVideoPrompt(beat: CanvasScriptBeat): string {
+    return beat.videoPrompt?.trim() || buildScriptBeatExportText(beat);
+}
+
+/** 智能合成提示词：让文本模型为单个分镜同时产出分镜图提示词与结构化视频运动提示词。 */
+export function buildScriptBeatPromptsSynthPrompt(beat: CanvasScriptBeat, assets: CanvasScriptAsset[] = []): string {
+    const findAsset = (name: string | undefined) => (name ? assets.find((asset) => asset.name === name) : undefined);
+    const character = findAsset(beat.character);
+    const scene = findAsset(beat.scene);
+    return [
+        "你是专业影视分镜师，请为下面的分镜同时撰写两条提示词。",
+        "1. imagePrompt：分镜帧静帧生图提示词，写清主体、动作、场景、光影氛围、景别与构图；给定角色/场景资产描述时必须原样融入，保证跨镜一致性。",
+        "2. videoPrompt：视频运动提示词，按「起始状态 → 动作过程（按秒分解，如 开头约1秒…／中段第3秒…）→ 结束状态（镜头落幅）→ 音效 → 配乐」结构化撰写。",
+        '只输出一个 JSON 对象，不要输出其他内容：{"imagePrompt":"...","videoPrompt":"..."}',
+        "",
+        `分镜标题：${beat.title}`,
+        `画面描述：${beat.content}`,
+        beat.shotType ? `景别：${beat.shotType}` : "",
+        beat.camera ? `机位/运镜：${beat.camera}` : "",
+        beat.duration ? `时长：${beat.duration}` : "",
+        character ? `角色「${character.name}」：${character.description}` : beat.character ? `角色：${beat.character}` : "",
+        scene ? `场景「${scene.name}」：${scene.description}` : beat.scene ? `场景：${beat.scene}` : "",
+        beat.dialogue ? `台词：${beat.dialogue}` : "",
+    ]
+        .filter(Boolean)
+        .join("\n");
+}
+
+/** 解析智能合成响应（容忍代码围栏与说明文字）；失败返回空对象。 */
+export function parseScriptBeatPromptsResponse(text: string): { imagePrompt?: string; videoPrompt?: string } {
+    const json = extractJsonObject(text);
+    if (!json) return {};
+    try {
+        const raw = JSON.parse(json) as Record<string, unknown>;
+        const imagePrompt = typeof raw.imagePrompt === "string" ? raw.imagePrompt.trim() : "";
+        const videoPrompt = typeof raw.videoPrompt === "string" ? raw.videoPrompt.trim() : "";
+        return { ...(imagePrompt ? { imagePrompt } : {}), ...(videoPrompt ? { videoPrompt } : {}) };
+    } catch {
+        return {};
+    }
+}
+
 /** 分镜导出文本：把幕/景别/时长/标题/画面描述/角色场景机位/台词排布为可直接填入视频或 ComfyUI 节点 composer 的提示词。 */
 export function buildScriptBeatExportText(beat: CanvasScriptBeat): string {
     const header = [beat.act, beat.sceneHeading, beat.shotType, beat.duration].filter((item): item is string => Boolean(item)).join("    ");
