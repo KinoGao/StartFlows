@@ -92,6 +92,8 @@ export type CanvasScriptBeat = {
     dialogue?: string;
     /** 音效/配乐（如「风声、鼓点」），无则空 */
     soundEffect?: string;
+    /** 光影氛围（如「黄昏暖光、冷色霓虹」），无则空 */
+    atmosphere?: string;
     /** 行颜色标记（分镜表轻管理），无则不标记 */
     colorMark?: "red" | "yellow" | "green" | "blue" | "gray";
     /** 所属幕/集（如「第一幕」「第二幕」），未分幕为空 */

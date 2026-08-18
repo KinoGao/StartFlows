@@ -12,11 +12,11 @@ export function buildScriptAiPrompt(body: string): string {
         "你是专业影视分镜师，请把下面的剧本拆解为可拍摄的分镜脚本。",
         "先完整提取资产（顺序：人物 → 道具 → 场景）：角色（人物名称 + 外貌/服装/气质描述）、道具（关键物品 + 外观描述）、场景（地点 + 环境/氛围描述）；资产是后续分镜生成时保持一致的引用基础。",
         "再识别幕/集结构：按剧情推进把整部剧本划分为若干幕（第一幕、第二幕……），每幕给出标题（如「第一幕」）、幕名（如「解读与分裂」）、梗概（一句话）和时长（如「约 45 分钟」）；剧本明确标注了幕/集/章节时严格沿用其划分与名称，不得合并或遗漏任何一幕。",
-        "然后按幕顺序逐幕拆分镜（第一幕的镜头排在最前，依次排完所有幕），每个分镜给出：所属幕（如「第一幕」，与 acts 中 title 对应）、标题（2-8 字）、画面描述（主体、动作、场景、氛围，写可拍的具体画面）、景别（大远景/远景/全景/中景/近景/特写）、时长（如 \"3s\"）、角色（引用资产名）、场景（引用资产名）、机位（如 中景跟拍、特写推近）、台词（本镜对白，无则空字符串）。",
+        "然后按幕顺序逐幕拆分镜（第一幕的镜头排在最前，依次排完所有幕），每个分镜给出：所属幕（如「第一幕」，与 acts 中 title 对应）、标题（2-8 字）、画面描述（主体、动作、场景、氛围，写可拍的具体画面）、景别（大远景/远景/全景/中景/近景/特写）、时长（如 \"3s\"）、角色（引用资产名）、场景（引用资产名）、机位（如 中景跟拍、特写推近）、台词（本镜对白，无则空字符串）、光影氛围（如 黄昏暖光、冷色霓虹，无则空字符串）。",
         "若剧本正文已包含明确的分镜表（幕/集标题、「场 N」场景行、「SH N / SC N / 镜 N」镜头编号），必须严格按原分镜表逐镜转换：不得增加、删除或合并镜头，beats 数量与原分镜表镜头数一致，幕与场的划分严格沿用原文；每个 beat 的 act 字段必须与 acts 中对应 title 逐字相同。",
         "画面优先：写\"人怎么干\"而非\"人干什么\"，避免抽象隐喻；镜头数量与剧本体量匹配（短剧本每幕 4-10 镜，长剧本每幕可适当增加），所有幕都要拆出分镜，不得遗漏任何一幕。",
         "分镜规范：同一场戏中角色位置、服装、道具与场景细节必须前后连贯，不得出现同一角色跨镜换装、场景对不上等跳戏；景别遵循 远-全-中-近-特 的节奏变化，情绪高点用近景/特写，交代环境用远景/全景；运镜描述写具体运动方式（推近/拉远/横移/跟拍/环绕/升降/固定），不写抽象形容词；动作连贯，相邻镜头衔接时画面元素保持空间一致性。",
-        '只输出一个 JSON 对象，不要输出其他内容，格式：{"assets":[{"kind":"character"|"scene"|"prop","name":"...","description":"..."}],"acts":[{"title":"第一幕","name":"...","summary":"...","duration":"约 45 分钟"}],"beats":[{"act":"第一幕","title":"...","content":"...","shotType":"中景","duration":"3s","character":"","scene":"","camera":"","dialogue":""}]}',
+        '只输出一个 JSON 对象，不要输出其他内容，格式：{"assets":[{"kind":"character"|"scene"|"prop","name":"...","description":"..."}],"acts":[{"title":"第一幕","name":"...","summary":"...","duration":"约 45 分钟"}],"beats":[{"act":"第一幕","title":"...","content":"...","shotType":"中景","duration":"3s","character":"","scene":"","camera":"","dialogue":"","atmosphere":""}]}',
         "",
         "剧本：",
         body.trim().slice(0, 12000),
@@ -79,6 +79,7 @@ export function parseScriptAiResponse(text: string): { beats: CanvasScriptBeat[]
             scene: text(beat.scene) || undefined,
             camera: text(beat.camera) || undefined,
             dialogue: text(beat.dialogue) || undefined,
+            atmosphere: text(beat.atmosphere) || undefined,
             act: text(beat.act) || undefined,
             prompt: "",
         };
@@ -122,7 +123,7 @@ function extractJsonObject(text: string): string | null {
 
 /** 合成单个分镜的生成提示词：镜头内容 + 景别/机位 + 角色/场景资产描述 + 台词。 */
 export function buildScriptBeatPrompt(
-    beat: Pick<CanvasScriptBeat, "title" | "content" | "shotType" | "camera" | "character" | "scene" | "dialogue">,
+    beat: Pick<CanvasScriptBeat, "title" | "content" | "shotType" | "camera" | "character" | "scene" | "dialogue" | "atmosphere">,
     assets: CanvasScriptAsset[] = [],
 ): string {
     const parts: string[] = [`根据脚本分镜生成画面：${beat.content || beat.title}`];
@@ -135,6 +136,7 @@ export function buildScriptBeatPrompt(
     const scene = findAsset(beat.scene);
     if (scene?.description) parts.push(`场景「${scene.name}」：${scene.description}`);
     else if (beat.scene) parts.push(`场景：${beat.scene}`);
+    if (beat.atmosphere) parts.push(`光影氛围：${beat.atmosphere}`);
     if (beat.dialogue) parts.push(`台词：${beat.dialogue}`);
     parts.push("要求画面有清晰主体、镜头景别、动作和氛围，电影感构图。");
     return parts.join("；");
@@ -177,6 +179,7 @@ export function buildScriptBeatPromptsSynthPrompt(beat: CanvasScriptBeat, assets
         scene ? `场景「${scene.name}」：${scene.description}` : beat.scene ? `场景：${beat.scene}` : "",
         beat.dialogue ? `台词：${beat.dialogue}` : "",
         beat.soundEffect ? `音效：${beat.soundEffect}` : "",
+        beat.atmosphere ? `光影氛围：${beat.atmosphere}` : "",
     ]
         .filter(Boolean)
         .join("\n");
@@ -204,5 +207,6 @@ export function buildScriptBeatExportText(beat: CanvasScriptBeat): string {
     if (refs.length) lines.push("—", ...refs);
     if (beat.dialogue) lines.push(`台词：${beat.dialogue}`);
     if (beat.soundEffect) lines.push(`音效：${beat.soundEffect}`);
+    if (beat.atmosphere) lines.push(`光影氛围：${beat.atmosphere}`);
     return lines.join("\n");
 }
