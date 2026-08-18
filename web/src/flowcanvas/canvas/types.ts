@@ -90,6 +90,10 @@ export type CanvasScriptBeat = {
     camera?: string;
     /** 本镜台词/对白，无则空 */
     dialogue?: string;
+    /** 音效/配乐（如「风声、鼓点」），无则空 */
+    soundEffect?: string;
+    /** 行颜色标记（分镜表轻管理），无则不标记 */
+    colorMark?: "red" | "yellow" | "green" | "blue" | "gray";
     /** 所属幕/集（如「第一幕」「第二幕」），未分幕为空 */
     act?: string;
     /** 所属场标题（如「场 1 · A 控制室 · 深夜」），由正文分镜表的场行解析 */

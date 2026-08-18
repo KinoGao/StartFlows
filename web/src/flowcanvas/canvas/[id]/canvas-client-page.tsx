@@ -57,11 +57,13 @@ import { resolveComposerOverlayPosition } from "../utils/canvas-composer-positio
 import { generationRunSettlementKey, settleFinishedGenerationRuns, updateCanvasGenerationRun, upsertCanvasGenerationRun } from "../utils/canvas-generation-runs";
 import { buildGroupExecutionPlan, collectGroupMemberIds, isGroupExecutableNode } from "../utils/canvas-group-execution";
 import { buildGridBeatPrompt, buildScriptBeats, buildScriptBeatsWithActs } from "../utils/canvas-script-beats";
-import { buildScriptAiPrompt, buildScriptBeatExportText, buildScriptBeatPrompt, parseScriptAiResponse } from "../utils/canvas-script-ai";
+import { buildScriptAiPrompt, buildScriptBeatPrompt, parseScriptAiResponse } from "../utils/canvas-script-ai";
 import { buildAssetPrompt } from "../utils/canvas-script-ai";
 import { resolveScriptBeatImagePrompt, buildScriptBeatPromptsSynthPrompt, parseScriptBeatPromptsResponse, resolveScriptBeatVideoPrompt } from "../utils/canvas-script-ai";
 import { composeScriptBeatVideoReferenceIds, deriveScriptBeatVideoMode, resolveScriptBeatReferenceIds } from "../utils/canvas-script-references";
 import { toFetchableMediaUrl } from "../utils/canvas-media-fetch";
+import { estimateCanvasTaskPoints, type CanvasSessionPricing } from "../utils/canvas-points-estimate";
+import { stitchImagesToBlob } from "../utils/canvas-stitch";
 import { ScriptDeskStudio, type ScriptOutputState } from "../components/script-desk-studio";
 import { canvasSelectionCenter, cloneCanvasSelection, CANVAS_SLASH_COMMANDS, type CanvasSlashCommand, type CanvasWorkflowTemplate } from "../utils/canvas-workflow-template";
 import { buildImageQuickCommandPrompt, CANVAS_IMAGE_QUICK_COMMANDS, type CanvasImageQuickCommand } from "../utils/canvas-image-quick-commands";
@@ -4904,6 +4906,37 @@ function LeaferCanvasPage() {
         [createCanvasConnection, createCanvasNode, deleteNodes, effectiveConfig.imageModel, effectiveConfig.model, handleConfigNodeChange],
     );
 
+    // 拼接导出：把已生成的分镜帧图按宫格拼成一张整图下载
+    const stitchScriptBeatFrames = useCallback(
+        async (scriptNode: CanvasNodeData) => {
+            const beats = scriptNode.metadata?.scriptBeats ?? [];
+            const frames = scriptNode.metadata?.scriptBeatFrames ?? {};
+            const byId = new Map(nodesRef.current.map((item) => [item.id, item]));
+            const images = beats.flatMap((beat, index) => {
+                const frameNode = frames[beat.id] ? byId.get(frames[beat.id]) : undefined;
+                const url = frameNode?.metadata?.content || "";
+                return url ? [{ url, title: beat.title || `分镜 ${index + 1}` }] : [];
+            });
+            if (!images.length) {
+                message.warning("还没有已生成的分镜帧图，请先生成分镜图");
+                return;
+            }
+            try {
+                const blob = await stitchImagesToBlob(images);
+                const url = URL.createObjectURL(blob);
+                const anchor = document.createElement("a");
+                anchor.href = url;
+                anchor.download = `${scriptNode.metadata?.scriptTitle || scriptNode.title || "分镜"}-分镜图.png`;
+                anchor.click();
+                URL.revokeObjectURL(url);
+                message.success(`已拼接导出 ${images.length} 张分镜图`);
+            } catch (error) {
+                message.error(error instanceof Error ? error.message : "拼接导出失败");
+            }
+        },
+        [message],
+    );
+
     const createScriptGridStoryboard = useCallback(
         (scriptNode: CanvasNodeData, command: CanvasSlashCommand) => {
             const body = scriptNode.metadata?.scriptBody?.trim() || scriptNode.metadata?.content?.trim() || DEFAULT_SCRIPT_BODY;
@@ -5874,6 +5907,29 @@ function LeaferCanvasPage() {
         }
         return result;
     }, [scriptStudioNode, nodes]);
+    const [sessionPricing, setSessionPricing] = useState<CanvasSessionPricing | null>(null);
+    useEffect(() => {
+        let cancelled = false;
+        fetch("/api/auth/session")
+            .then((res) => res.json())
+            .then((body) => {
+                const data = body?.data;
+                if (!cancelled && data?.modelPointCosts && data?.generationPointMultipliers) {
+                    setSessionPricing({ modelPointCosts: data.modelPointCosts, generationPointMultipliers: data.generationPointMultipliers });
+                }
+            })
+            .catch(() => {});
+        return () => {
+            cancelled = true;
+        };
+    }, []);
+    const scriptPriceEstimates = useMemo(
+        () => ({
+            image: sessionPricing ? estimateCanvasTaskPoints(sessionPricing, { type: "image", model: effectiveConfig.imageModel || effectiveConfig.model, quality: effectiveConfig.quality }) : null,
+            video: sessionPricing ? estimateCanvasTaskPoints(sessionPricing, { type: "video", model: effectiveConfig.videoModel || effectiveConfig.model, quality: effectiveConfig.vquality, seconds: Number(effectiveConfig.videoSeconds) || undefined }) : null,
+        }),
+        [sessionPricing, effectiveConfig],
+    );
     const scriptReferenceOptions = useMemo(
         () =>
             nodes
@@ -6274,6 +6330,8 @@ function LeaferCanvasPage() {
                         onGenerateAllAssets={() => generateAllScriptAssetNodes(scriptStudioNode)}
                         onSynthesizeBeat={(beat) => synthesizeScriptBeatPrompts(scriptStudioNode, beat)}
                         onExportBeats={(target, beatIds) => exportScriptBeatNodes(scriptStudioNode, target, beatIds)}
+                        onStitchFrames={() => void stitchScriptBeatFrames(scriptStudioNode)}
+                        priceEstimates={scriptPriceEstimates}
                         outputStates={scriptOutputStates}
                         referenceOptions={scriptReferenceOptions}
                     />

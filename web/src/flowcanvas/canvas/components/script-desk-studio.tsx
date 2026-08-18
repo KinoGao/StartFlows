@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { AutoComplete, Button, Checkbox, Dropdown, Modal, Select } from "antd";
+import { AutoComplete, Button, Checkbox, Dropdown, Modal, Popconfirm, Select } from "antd";
 import { ChevronDown, ChevronRight, Clapperboard, Download, Image as ImageIcon, ListOrdered, Plus, Sparkles, Upload, Workflow, X } from "lucide-react";
 
 import type { canvasThemes } from "@/flowcanvas/lib/canvas-theme";
@@ -30,6 +30,17 @@ function stopCanvasPanelInteraction(event: { stopPropagation(): void }) {
 
 const ACT_UNASSIGNED = "__unassigned__";
 
+const SHOT_TYPE_OPTIONS = ["大远景", "远景", "全景", "中远景", "中景", "中近景", "近景", "特写", "大特写", "头肩景", "半身景", "全身景"].map((value) => ({ value }));
+const DURATION_OPTIONS = ["3s", "5s", "6s", "8s", "10s", "15s"].map((value) => ({ value }));
+const CAMERA_OPTIONS = ["固定", "推镜", "拉镜", "摇镜", "跟镜", "环绕", "俯拍", "仰拍", "升降", "横移"].map((value) => ({ value }));
+const COLOR_MARKS: Array<{ value: NonNullable<CanvasScriptBeat["colorMark"]>; label: string; color: string }> = [
+    { value: "red", label: "红", color: "#ef4444" },
+    { value: "yellow", label: "黄", color: "#eab308" },
+    { value: "green", label: "绿", color: "#22c55e" },
+    { value: "blue", label: "蓝", color: "#3b82f6" },
+    { value: "gray", label: "灰", color: "#8a8f98" },
+];
+
 /**
  * 脚本节点全屏工作台（对齐短剧分镜脚本模式）：左侧剧本 + 资产，右侧按幕分组的分镜卡片，
  * 折叠预览 / 展开行内编辑，逐镜生成状态徽章，幕可新增、改名、定向插入分镜。
@@ -55,6 +66,8 @@ export function ScriptDeskStudio({
     onGenerateAllAssets,
     onSynthesizeBeat,
     onExportBeats,
+    onStitchFrames,
+    priceEstimates,
     outputStates,
     referenceOptions,
 }: {
@@ -78,6 +91,8 @@ export function ScriptDeskStudio({
     onGenerateAllAssets: () => void;
     onSynthesizeBeat: (beat: CanvasScriptBeat) => void | Promise<void>;
     onExportBeats: (target: "video" | "comfyui" | "image", beatIds: string[]) => void;
+    onStitchFrames: () => void;
+    priceEstimates: { image: number | null; video: number | null };
     outputStates: Record<string, ScriptOutputState>;
     referenceOptions: ScriptReferenceOption[];
 }) {
@@ -194,8 +209,9 @@ export function ScriptDeskStudio({
         const frameStatus = SCRIPT_OUTPUT_STATUS[frameState];
         const autoImagePrompt = resolveScriptBeatImagePrompt({ ...beat, imagePrompt: undefined }, assets);
         const autoVideoPrompt = resolveScriptBeatVideoPrompt({ ...beat, videoPrompt: undefined });
+        const colorMark = COLOR_MARKS.find((mark) => mark.value === beat.colorMark);
         return (
-            <div key={beat.id} className="rounded-xl border" style={{ borderColor: theme.toolbar.border, background: theme.node.fill }}>
+            <div key={beat.id} className="rounded-xl border" style={{ borderColor: theme.toolbar.border, background: theme.node.fill, ...(colorMark ? { borderLeft: `3px solid ${colorMark.color}` } : {}) }}>
                 <div className="flex items-center gap-2 px-3 pt-2.5">
                     <span className="flex size-6 shrink-0 items-center justify-center rounded-md text-[11px] font-semibold" style={{ background: theme.ui.controlFill, color: theme.node.muted }}>
                         {index + 1}
@@ -257,9 +273,22 @@ export function ScriptDeskStudio({
                     <button type="button" className="opacity-45 transition hover:opacity-100" onClick={() => onBeatAdd(index, beat.act)}>
                         在下方插入
                     </button>
-                    <button type="button" className="opacity-45 transition hover:opacity-100" onClick={() => onBeatRemove(index)}>
-                        删除
-                    </button>
+                    <Dropdown
+                        menu={{
+                            items: [{ key: "none", label: "无标记" }, ...COLOR_MARKS.map((mark) => ({ key: mark.value, label: `${mark.label}色标记` }))],
+                            selectedKeys: beat.colorMark ? [beat.colorMark] : ["none"],
+                            onClick: ({ key }) => patchBeat(beat, { colorMark: key === "none" ? undefined : (key as NonNullable<CanvasScriptBeat["colorMark"]>) }),
+                        }}
+                    >
+                        <button type="button" className="opacity-45 transition hover:opacity-100">
+                            标记
+                        </button>
+                    </Dropdown>
+                    <Popconfirm title="删除该分镜？" description="其帧图与输出节点的关联将解除，画布上已生成的节点保留。" okText="删除" cancelText="取消" onConfirm={() => onBeatRemove(index)}>
+                        <button type="button" className="opacity-45 transition hover:opacity-100">
+                            删除
+                        </button>
+                    </Popconfirm>
                     {beat.camera ? <span className="ml-auto truncate opacity-40">{beat.camera}</span> : null}
                 </div>
                 {expanded ? (
@@ -306,17 +335,26 @@ export function ScriptDeskStudio({
                                 智能合成提示词
                             </Button>
                         </div>
-                        <input
-                            className="h-8 w-full rounded-lg border px-2.5 text-xs outline-none placeholder:opacity-35"
-                            value={beat.dialogue || ""}
-                            placeholder="台词 / 旁白（无则留空）"
-                            onChange={(event) => patchBeat(beat, { dialogue: event.target.value })}
-                            style={fieldStyle}
-                        />
+                        <div className="grid grid-cols-2 gap-2">
+                            <input
+                                className="h-8 w-full rounded-lg border px-2.5 text-xs outline-none placeholder:opacity-35"
+                                value={beat.dialogue || ""}
+                                placeholder="台词 / 旁白（无则留空）"
+                                onChange={(event) => patchBeat(beat, { dialogue: event.target.value })}
+                                style={fieldStyle}
+                            />
+                            <input
+                                className="h-8 w-full rounded-lg border px-2.5 text-xs outline-none placeholder:opacity-35"
+                                value={beat.soundEffect || ""}
+                                placeholder="音效 / 配乐（如 风声、鼓点）"
+                                onChange={(event) => patchBeat(beat, { soundEffect: event.target.value })}
+                                style={fieldStyle}
+                            />
+                        </div>
                         <div className="grid grid-cols-3 gap-2">
-                            <input className="h-8 rounded-lg border px-2.5 text-xs outline-none placeholder:opacity-35" value={beat.shotType || ""} placeholder="景别（如 特写）" onChange={(event) => patchBeat(beat, { shotType: event.target.value })} style={fieldStyle} />
-                            <input className="h-8 rounded-lg border px-2.5 text-xs outline-none placeholder:opacity-35" value={beat.duration || ""} placeholder="时长（如 5s）" onChange={(event) => patchBeat(beat, { duration: event.target.value })} style={fieldStyle} />
-                            <input className="h-8 rounded-lg border px-2.5 text-xs outline-none placeholder:opacity-35" value={beat.camera || ""} placeholder="机位 / 运镜" onChange={(event) => patchBeat(beat, { camera: event.target.value })} style={fieldStyle} />
+                            <AutoComplete size="small" value={beat.shotType || ""} options={SHOT_TYPE_OPTIONS} placeholder="景别（如 特写）" onChange={(value) => patchBeat(beat, { shotType: value })} />
+                            <AutoComplete size="small" value={beat.duration || ""} options={DURATION_OPTIONS} placeholder="时长（如 5s）" onChange={(value) => patchBeat(beat, { duration: value })} />
+                            <AutoComplete size="small" value={beat.camera || ""} options={CAMERA_OPTIONS} placeholder="机位 / 运镜" onChange={(value) => patchBeat(beat, { camera: value })} />
                         </div>
                         <div className="grid grid-cols-3 gap-2">
                             <AutoComplete size="small" value={beat.character || ""} options={assetOptions("character")} placeholder="角色（引用人物资产）" onChange={(value) => patchBeat(beat, { character: value })} />
@@ -406,8 +444,16 @@ export function ScriptDeskStudio({
                                 { key: "image", label: "导出为分镜图节点", icon: <ImageIcon className="size-3.5" /> },
                                 { key: "video", label: "导出为视频节点", icon: <Clapperboard className="size-3.5" /> },
                                 { key: "comfyui", label: "导出为 ComfyUI 节点", icon: <Workflow className="size-3.5" /> },
+                                { type: "divider" as const },
+                                { key: "stitch", label: "拼接导出分镜图整图", icon: <Download className="size-3.5" /> },
                             ],
-                            onClick: ({ key }) => setExportPlan({ target: key as "video" | "comfyui" | "image", selectedIds: beats.map((beat) => beat.id) }),
+                            onClick: ({ key }) => {
+                                if (key === "stitch") {
+                                    onStitchFrames();
+                                    return;
+                                }
+                                setExportPlan({ target: key as "video" | "comfyui" | "image", selectedIds: beats.map((beat) => beat.id) });
+                            },
                         }}
                         disabled={!beats.length}
                     >
@@ -598,6 +644,16 @@ export function ScriptDeskStudio({
                                     </label>
                                 );
                             })}
+                        </div>
+                        <div className="text-[11px] opacity-50">
+                            {exportPlan.target === "comfyui"
+                                ? "ComfyUI 使用你自己的工作流与算力，不消耗平台积分。"
+                                : (() => {
+                                      const unit = exportPlan.target === "image" ? priceEstimates.image : priceEstimates.video;
+                                      return unit != null
+                                          ? `预计消耗约 ${(unit * exportPlan.selectedIds.length).toFixed(2)} 积分（${unit} 积分/镜，按当前模型与参数估算，实际以服务端扣费为准）`
+                                          : "当前模型未配置积分单价或为免费模型，实际扣费以服务端为准。";
+                                  })()}
                         </div>
                     </div>
                 ) : null}

@@ -176,6 +176,7 @@ export function buildScriptBeatPromptsSynthPrompt(beat: CanvasScriptBeat, assets
         character ? `角色「${character.name}」：${character.description}` : beat.character ? `角色：${beat.character}` : "",
         scene ? `场景「${scene.name}」：${scene.description}` : beat.scene ? `场景：${beat.scene}` : "",
         beat.dialogue ? `台词：${beat.dialogue}` : "",
+        beat.soundEffect ? `音效：${beat.soundEffect}` : "",
     ]
         .filter(Boolean)
         .join("\n");
@@ -202,5 +203,6 @@ export function buildScriptBeatExportText(beat: CanvasScriptBeat): string {
     const lines = [header, beat.title, beat.content].filter(Boolean);
     if (refs.length) lines.push("—", ...refs);
     if (beat.dialogue) lines.push(`台词：${beat.dialogue}`);
+    if (beat.soundEffect) lines.push(`音效：${beat.soundEffect}`);
     return lines.join("\n");
 }
