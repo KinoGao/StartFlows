@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
 
-import { buildScriptAiPrompt, buildScriptBeatPrompt, parseScriptAiResponse } from "./canvas-script-ai";
+import { buildScriptAiPrompt, buildScriptBeatPrompt, parseScriptAiResponse, resolveScriptBeatImagePrompt } from "./canvas-script-ai";
 
 const SAMPLE_JSON = JSON.stringify({
     assets: [
@@ -90,4 +90,10 @@ test("buildScriptBeatPrompt 引用角色/场景资产描述与台词", () => {
     assert.ok(prompt.includes("林小雨"));
     assert.ok(prompt.includes("教学楼走廊"));
     assert.ok(prompt.includes("今天也要加油。"));
+});
+
+test("resolveScriptBeatImagePrompt 优先用户覆盖，否则按分镜字段自动合成", () => {
+    const { beats, assets } = parseScriptAiResponse(SAMPLE_JSON);
+    assert.equal(resolveScriptBeatImagePrompt({ ...beats[0], imagePrompt: "  自定义帧图  " }, assets), "自定义帧图");
+    assert.equal(resolveScriptBeatImagePrompt(beats[0], assets), buildScriptBeatPrompt(beats[0], assets));
 });

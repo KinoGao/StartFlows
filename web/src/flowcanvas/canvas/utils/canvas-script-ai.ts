@@ -147,6 +147,11 @@ export function buildAssetPrompt(asset: CanvasScriptAsset): string {
     return `${kindLabel}设定图：${asset.name}。${asset.description}。要求：${subject}，干净背景，风格统一，电影质感。`;
 }
 
+/** 分镜图提示词：用户显式覆盖优先，否则按分镜字段 + 资产描述自动合成（用于两段式的分镜帧生图）。 */
+export function resolveScriptBeatImagePrompt(beat: Pick<CanvasScriptBeat, "imagePrompt" | "title" | "content" | "shotType" | "camera" | "character" | "scene" | "dialogue">, assets: CanvasScriptAsset[] = []): string {
+    return beat.imagePrompt?.trim() || buildScriptBeatPrompt(beat, assets);
+}
+
 /** 分镜导出文本：把幕/景别/时长/标题/画面描述/角色场景机位/台词排布为可直接填入视频或 ComfyUI 节点 composer 的提示词。 */
 export function buildScriptBeatExportText(beat: CanvasScriptBeat): string {
     const header = [beat.act, beat.sceneHeading, beat.shotType, beat.duration].filter((item): item is string => Boolean(item)).join("    ");

@@ -16,7 +16,7 @@ import { useUserStore } from "@/flowcanvas/stores/use-user-store";
 import { rewriteThroughProxy } from "@/flowcanvas/lib/ai-proxy-url";
 import type { ReferenceImage } from "@/flowcanvas/types/image";
 import type { ReferenceAudio, ReferenceVideo } from "@/flowcanvas/types/media";
-import { resolveVideoModelCapabilityForRequest, type VideoGenerationMode, type VideoModelCapability } from "@/flowcanvas/services/api/model-capabilities";
+import { resolveVideoModelCapabilityForRequest, videoImageReferenceRole, type VideoGenerationMode, type VideoModelCapability } from "@/flowcanvas/services/api/model-capabilities";
 import { VideoGenerationTimeoutError, assertVideoGenerationActive, remainingVideoGenerationTime } from "@/flowcanvas/services/api/video-generation-timeout";
 import { durableGenerationHeaders, type DurableGenerationOptions } from "@/flowcanvas/services/api/generation-jobs";
 
@@ -121,7 +121,7 @@ export async function createVideoGenerationTask(config: AiConfig, prompt: string
     const model = modelOptionName(selectedModel);
     const referenceUrl = (item: { dataUrl?: string; url?: string }) => (item.dataUrl?.startsWith("data:") ? item.dataUrl : item.url || item.dataUrl || "");
     const referencesPayload = [
-        ...references.map((item) => ({ type: "image", role: "reference", url: referenceUrl(item) })),
+        ...references.map((item, index) => ({ type: "image", role: videoImageReferenceRole(options?.generationMode, index), url: referenceUrl(item) })),
         ...videoReferences.map((item) => ({ type: "video", role: "reference", url: referenceUrl(item) })),
         ...audioReferences.map((item) => ({ type: "audio", role: "reference", url: referenceUrl(item) })),
     ].filter((item) => item.url);

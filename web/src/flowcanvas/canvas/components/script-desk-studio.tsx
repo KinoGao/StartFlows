@@ -4,10 +4,14 @@ import { ChevronDown, ChevronRight, Clapperboard, Download, Image as ImageIcon, 
 
 import type { canvasThemes } from "@/flowcanvas/lib/canvas-theme";
 import { buildScriptBeats } from "../utils/canvas-script-beats";
+import { resolveScriptBeatImagePrompt } from "../utils/canvas-script-ai";
+import { resolveScriptBeatReferenceIds } from "../utils/canvas-script-references";
 import type { CanvasNodeData, CanvasNodeMetadata, CanvasScriptAct, CanvasScriptAsset, CanvasScriptBeat } from "../types";
 
 type Theme = (typeof canvasThemes)[keyof typeof canvasThemes];
 export type ScriptOutputState = "idle" | "loading" | "success" | "error";
+/** 画布上可作为分镜参考图的图片节点摘要 */
+export type ScriptReferenceOption = { id: string; title: string; url: string };
 
 const SCRIPT_OUTPUT_STATUS = {
     idle: { label: "待生成", color: "#8a8f98" },
@@ -50,6 +54,7 @@ export function ScriptDeskStudio({
     onGenerateAsset,
     onExportBeats,
     outputStates,
+    referenceOptions,
 }: {
     node: CanvasNodeData;
     theme: Theme;
@@ -66,10 +71,11 @@ export function ScriptDeskStudio({
     onAssetChange: (asset: CanvasScriptAsset) => void;
     onAssetAdd: (asset: CanvasScriptAsset) => void;
     onAssetRemove: (assetId: string) => void;
-    onGenerateBeat: (beat: CanvasScriptBeat, index: number, target: "video" | "comfyui") => void;
+    onGenerateBeat: (beat: CanvasScriptBeat, index: number, target: "video" | "comfyui" | "image") => void;
     onGenerateAsset: (asset: CanvasScriptAsset, target: "image" | "comfyui") => void;
-    onExportBeats: (target: "video" | "comfyui") => void;
+    onExportBeats: (target: "video" | "comfyui" | "image") => void;
     outputStates: Record<string, ScriptOutputState>;
+    referenceOptions: ScriptReferenceOption[];
 }) {
     const body = node.metadata?.scriptBody ?? node.metadata?.content ?? "";
     const beats = node.metadata?.scriptBeats?.length ? node.metadata.scriptBeats : buildScriptBeats(body);
@@ -132,6 +138,8 @@ export function ScriptDeskStudio({
         });
         return options;
     }, [acts, beats]);
+    const referenceOptionById = useMemo(() => new Map(referenceOptions.map((option) => [option.id, option])), [referenceOptions]);
+    const isReferenceOption = (id: string) => referenceOptionById.has(id);
 
     const addAct = () => {
         onChange({ scriptActs: [...acts, { id: `act-${Date.now()}`, title: `第${acts.length + 1}幕` }] });
@@ -161,6 +169,16 @@ export function ScriptDeskStudio({
         const state = outputStates[beat.id] || "idle";
         const status = SCRIPT_OUTPUT_STATUS[state];
         const expanded = expandedBeatId === beat.id;
+        const assetOutputs = node.metadata?.scriptAssetOutputs ?? {};
+        const beatRefIds = resolveScriptBeatReferenceIds(beat, assets, assetOutputs, isReferenceOption);
+        const beatRefsAuto = beat.referenceNodeIds === undefined && beatRefIds.length > 0;
+        const setBeatRefs = (ids: string[]) => patchBeat(beat, { referenceNodeIds: ids });
+        const assetRefCandidates = resolveScriptBeatReferenceIds({ character: beat.character, scene: beat.scene }, assets, assetOutputs, isReferenceOption).filter((id) => !beatRefIds.includes(id));
+        const frameNodeId = node.metadata?.scriptBeatFrames?.[beat.id];
+        const frameOption = frameNodeId ? referenceOptionById.get(frameNodeId) : undefined;
+        const frameState = outputStates[`${beat.id}:frame`] || "idle";
+        const frameStatus = SCRIPT_OUTPUT_STATUS[frameState];
+        const autoImagePrompt = resolveScriptBeatImagePrompt({ ...beat, imagePrompt: undefined }, assets);
         return (
             <div key={beat.id} className="rounded-xl border" style={{ borderColor: theme.toolbar.border, background: theme.node.fill }}>
                 <div className="flex items-center gap-2 px-3 pt-2.5">
@@ -178,13 +196,24 @@ export function ScriptDeskStudio({
                     </span>
                     {beat.shotType ? <span className="shrink-0 rounded px-1.5 py-0.5 text-[11px] opacity-70" style={{ background: theme.ui.controlFill }}>{beat.shotType}</span> : null}
                     {beat.duration ? <span className="shrink-0 rounded px-1.5 py-0.5 text-[11px] opacity-70" style={{ background: theme.ui.controlFill }}>{beat.duration}</span> : null}
+                    {beatRefIds.length ? (
+                        <span className="shrink-0 rounded px-1.5 py-0.5 text-[11px] opacity-70" style={{ background: theme.ui.controlFill }}>
+                            垫图 {beatRefIds.length}
+                        </span>
+                    ) : null}
+                    {frameNodeId ? (
+                        <span className="shrink-0 rounded px-1.5 py-0.5 text-[11px]" style={statusTagStyle(frameStatus.color)} title={`分镜帧：${frameStatus.label}${frameOption ? `（${frameOption.title}）` : ""}`}>
+                            帧图·{frameStatus.label}
+                        </span>
+                    ) : null}
                     <Dropdown
                         menu={{
                             items: [
+                                { key: "image", label: "分镜图节点", icon: <ImageIcon className="size-3.5" /> },
                                 { key: "video", label: "视频节点", icon: <Clapperboard className="size-3.5" /> },
                                 { key: "comfyui", label: "ComfyUI 节点", icon: <Workflow className="size-3.5" /> },
                             ],
-                            onClick: ({ key }) => onGenerateBeat(beat, index, key as "video" | "comfyui"),
+                            onClick: ({ key }) => onGenerateBeat(beat, index, key as "video" | "comfyui" | "image"),
                         }}
                         disabled={!beat.content.trim() && !beat.title.trim()}
                     >
@@ -227,6 +256,14 @@ export function ScriptDeskStudio({
                             onChange={(event) => patchBeat(beat, { content: event.target.value })}
                             style={fieldStyle}
                         />
+                        <textarea
+                            className="thin-scrollbar h-14 w-full resize-none rounded-lg border px-2.5 py-1.5 text-xs leading-5 outline-none placeholder:opacity-35"
+                            value={beat.imagePrompt || ""}
+                            placeholder={`分镜图提示词（留空自动合成）：${autoImagePrompt}`}
+                            onChange={(event) => patchBeat(beat, { imagePrompt: event.target.value || undefined })}
+                            style={fieldStyle}
+                            aria-label="分镜图提示词"
+                        />
                         <input
                             className="h-8 w-full rounded-lg border px-2.5 text-xs outline-none placeholder:opacity-35"
                             value={beat.dialogue || ""}
@@ -248,6 +285,53 @@ export function ScriptDeskStudio({
                                 options={actSelectOptions}
                                 onChange={(value) => patchBeat(beat, { act: value === ACT_UNASSIGNED ? undefined : value })}
                             />
+                        </div>
+                        <div>
+                            <div className="mb-1 flex items-center gap-2 text-[11px] opacity-55">
+                                <span>参考垫图（生成时作为参考图带入，确认卡片里可再调整）</span>
+                                {beatRefsAuto ? <span className="opacity-70">已按角色/场景自动带入</span> : null}
+                                {frameNodeId ? <span className="opacity-70">视频生成自动携带分镜帧作首帧</span> : null}
+                            </div>
+                            <div className="flex flex-wrap items-center gap-1.5">
+                                {beatRefIds.map((id) => {
+                                    const option = referenceOptionById.get(id);
+                                    return (
+                                        <span key={id} className="relative block size-10 shrink-0" title={option?.title || "参考图"}>
+                                            <span className="block size-10 overflow-hidden rounded-md border" style={{ borderColor: theme.toolbar.border, background: theme.ui.controlFill }}>
+                                                {option?.url ? (
+                                                    <img src={option.url} alt={option.title} className="size-full object-cover" />
+                                                ) : (
+                                                    <span className="grid size-full place-items-center opacity-50">
+                                                        <ImageIcon className="size-4" />
+                                                    </span>
+                                                )}
+                                            </span>
+                                            <button type="button" aria-label={`移除参考图 ${option?.title || ""}`} className="absolute right-0 top-0 grid size-7 place-items-center" onClick={() => setBeatRefs(beatRefIds.filter((item) => item !== id))}>
+                                                <span className="grid size-4 place-items-center rounded-full bg-black/70 text-white transition hover:bg-red-500/90">
+                                                    <X className="size-2.5" />
+                                                </span>
+                                            </button>
+                                        </span>
+                                    );
+                                })}
+                                <Select
+                                    size="small"
+                                    style={{ minWidth: 132 }}
+                                    placeholder="添加参考图"
+                                    value={null}
+                                    showSearch
+                                    options={referenceOptions.filter((option) => !beatRefIds.includes(option.id)).map((option) => ({ value: option.id, label: option.title }))}
+                                    onChange={(id) => {
+                                        if (id) setBeatRefs([...beatRefIds, id]);
+                                    }}
+                                />
+                                {assetRefCandidates.length ? (
+                                    <button type="button" className="rounded border px-2 py-1 text-[11px] opacity-60 transition hover:opacity-100" style={{ borderColor: theme.toolbar.border }} onClick={() => setBeatRefs([...beatRefIds, ...assetRefCandidates])}>
+                                        带入角色/场景设定图
+                                    </button>
+                                ) : null}
+                                {!beatRefIds.length && !assetRefCandidates.length ? <span className="text-[11px] opacity-40">无垫图时按文生视频生成</span> : null}
+                            </div>
                         </div>
                     </div>
                 ) : null}
@@ -277,10 +361,11 @@ export function ScriptDeskStudio({
                     <Dropdown
                         menu={{
                             items: [
+                                { key: "image", label: "导出为分镜图节点", icon: <ImageIcon className="size-3.5" /> },
                                 { key: "video", label: "导出为视频节点", icon: <Clapperboard className="size-3.5" /> },
                                 { key: "comfyui", label: "导出为 ComfyUI 节点", icon: <Workflow className="size-3.5" /> },
                             ],
-                            onClick: ({ key }) => onExportBeats(key as "video" | "comfyui"),
+                            onClick: ({ key }) => onExportBeats(key as "video" | "comfyui" | "image"),
                         }}
                         disabled={!beats.length}
                     >
@@ -366,7 +451,7 @@ export function ScriptDeskStudio({
                     <div className="mb-2 flex items-center justify-between">
                         <div className="text-sm font-medium opacity-70">分镜</div>
                         <div className="flex items-center gap-3">
-                            <div className="text-xs opacity-45">{acts.length} 幕 · {beats.length} 个分镜 · 逐镜点「生成」，或顶部「导出」批量创建节点</div>
+                            <div className="text-xs opacity-45">{acts.length} 幕 · {beats.length} 个分镜 · 逐镜「生成」创建节点后在确认卡片提交，或顶部「导出」批量创建</div>
                             <Button size="small" icon={<Plus className="size-3.5" />} onClick={addAct}>
                                 新增幕
                             </Button>

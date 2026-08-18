@@ -94,6 +94,10 @@ export type CanvasScriptBeat = {
     act?: string;
     /** 所属场标题（如「场 1 · A 控制室 · 深夜」），由正文分镜表的场行解析 */
     sceneHeading?: string;
+    /** 本镜参考图（画布图片节点 id）。未设置时生成自动带入角色/场景资产设定图；显式空数组表示不用垫图 */
+    referenceNodeIds?: string[];
+    /** 分镜图提示词覆盖：留空时按画面描述 + 角色/场景资产描述自动合成 */
+    imagePrompt?: string;
 };
 
 /** 脚本拆解出的可复用资产（角色/场景/道具），生成提示词时引用其描述 */
@@ -129,6 +133,8 @@ export type CanvasScriptMetadata = {
     scriptExportIds?: string[];
     /** 分镜 id → 输出节点 id（脚本工作台生成状态回显） */
     scriptBeatOutputs?: Record<string, string>;
+    /** 分镜 id → 分镜图节点 id（两段式：先出分镜帧图，再图生视频） */
+    scriptBeatFrames?: Record<string, string>;
     /** 资产 id → 输出节点 id（资产生成状态回显） */
     scriptAssetOutputs?: Record<string, string>;
 };

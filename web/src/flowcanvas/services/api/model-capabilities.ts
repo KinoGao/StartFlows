@@ -3,6 +3,13 @@ import { queryClient } from '@/flowcanvas/lib/query-client';
 
 export type ImageGenerationMode = 'text-to-image' | 'image-to-image' | 'image-edit';
 export type VideoGenerationMode = 'text-to-video' | 'all-in-one-reference' | 'image-to-video' | 'first-last-frame' | 'image-reference' | 'multi-frame';
+
+/** 图片参考的服务端角色：首帧图生/首尾帧模式按顺序映射 first_frame/last_frame，其余为普通参考。 */
+export function videoImageReferenceRole(mode: VideoGenerationMode | undefined, index: number): "first_frame" | "last_frame" | "reference" {
+    if (mode === "image-to-video") return "first_frame";
+    if (mode === "first-last-frame") return index === 0 ? "first_frame" : index === 1 ? "last_frame" : "reference";
+    return "reference";
+}
 export type AudioModelCapability = {
     id: string;
     provider: string;

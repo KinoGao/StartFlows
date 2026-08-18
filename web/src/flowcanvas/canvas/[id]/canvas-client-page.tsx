@@ -15,8 +15,8 @@ import { listCanvasTemplates, saveCanvasTemplate, deleteCanvasTemplate } from "@
 import { runComfyWorkflow, uploadComfyFile } from "@/flowcanvas/services/api/comfyui";
 import { applyComfyWorkflowFields, getComfyWorkflow, listComfyWorkflows, type ComfyWorkflow, type ComfyWorkflowField } from "@/flowcanvas/services/comfyui-workflows";
 import { defaultConfig, type AiConfig, type ComfyUiConfig, useConfigStore, useEffectiveConfig } from "@/flowcanvas/stores/use-config-store";
-import { imageToDataUrl, resolveImageUrl, uploadImage, type UploadedImage } from "@/flowcanvas/services/image-storage";
-import { resolveMediaUrl, uploadMediaFile, type UploadedFile } from "@/flowcanvas/services/file-storage";
+import { getImageBlob, imageToDataUrl, resolveImageUrl, uploadImage, type UploadedImage } from "@/flowcanvas/services/image-storage";
+import { getMediaBlob, resolveMediaUrl, uploadMediaFile, type UploadedFile } from "@/flowcanvas/services/file-storage";
 import { nanoid } from "nanoid";
 import { dataUrlToBlob, getDataUrlByteSize, readImageMeta } from "@/flowcanvas/lib/image-utils";
 import { canvasThemes, type CanvasBackgroundMode } from "@/flowcanvas/lib/canvas-theme";
@@ -59,6 +59,9 @@ import { buildGroupExecutionPlan, collectGroupMemberIds, isGroupExecutableNode }
 import { buildGridBeatPrompt, buildScriptBeats, buildScriptBeatsWithActs } from "../utils/canvas-script-beats";
 import { buildScriptAiPrompt, buildScriptBeatExportText, buildScriptBeatPrompt, parseScriptAiResponse } from "../utils/canvas-script-ai";
 import { buildAssetPrompt } from "../utils/canvas-script-ai";
+import { resolveScriptBeatImagePrompt } from "../utils/canvas-script-ai";
+import { composeScriptBeatVideoReferenceIds, deriveScriptBeatVideoMode, resolveScriptBeatReferenceIds } from "../utils/canvas-script-references";
+import { toFetchableMediaUrl } from "../utils/canvas-media-fetch";
 import { ScriptDeskStudio, type ScriptOutputState } from "../components/script-desk-studio";
 import { canvasSelectionCenter, cloneCanvasSelection, CANVAS_SLASH_COMMANDS, type CanvasSlashCommand, type CanvasWorkflowTemplate } from "../utils/canvas-workflow-template";
 import { buildImageQuickCommandPrompt, CANVAS_IMAGE_QUICK_COMMANDS, type CanvasImageQuickCommand } from "../utils/canvas-image-quick-commands";
@@ -4828,34 +4831,77 @@ function LeaferCanvasPage() {
                 deleteNodes(new Set([oldOutputId]));
                 connectionsRef.current = connectionsRef.current.filter((conn) => conn.fromNodeId !== oldOutputId && conn.toNodeId !== oldOutputId);
             }
+            // 参考图：分镜帧（两段式）固定为首帧，其余显式选择（含显式清空）优先，未设置时自动带入角色/场景资产设定图
+            const usableImageIds = new Set(nodesRef.current.filter((item) => item.type === CanvasNodeType.Image && (item.metadata?.content || item.metadata?.storageKey)).map((item) => item.id));
+            const referenceIds = composeScriptBeatVideoReferenceIds(scriptNode.metadata?.scriptBeatFrames?.[beat.id], beat, scriptNode.metadata?.scriptAssets ?? [], scriptNode.metadata?.scriptAssetOutputs ?? {}, (id) => usableImageIds.has(id));
             const type = target === "comfyui" ? CanvasNodeType.ComfyUI : CanvasNodeType.Video;
             const spec = NODE_DEFAULT_SIZE[type];
-            const position = { x: scriptNode.position.x + scriptNode.width + 96, y: scriptNode.position.y + beatIndex * (spec.height + 36) };
+            const frameColumnWidth = NODE_DEFAULT_SIZE[CanvasNodeType.Image].width + 96;
+            const position = { x: scriptNode.position.x + scriptNode.width + 96 + frameColumnWidth, y: scriptNode.position.y + beatIndex * (spec.height + 36) };
             const prompt = buildScriptBeatExportText(beat);
             const metadata: CanvasNodeMetadata =
                 target === "comfyui"
                     ? { status: NODE_STATUS_IDLE, composerContent: prompt, generationMode: "comfyui", comfyCapability: "text-to-video", comfyWorkflowId: comfyui.defaultWorkflowId }
-                    : { status: NODE_STATUS_IDLE, prompt, composerContent: prompt, generationMode: "video", videoGenerationMode: "text-to-video", model: effectiveConfig.videoModel || effectiveConfig.model };
+                    : { status: NODE_STATUS_IDLE, prompt, composerContent: prompt, generationMode: "video", videoGenerationMode: deriveScriptBeatVideoMode(referenceIds.length), model: effectiveConfig.videoModel || effectiveConfig.model };
             const node: CanvasNodeData = {
                 ...createCanvasNode(type, { x: position.x + spec.width / 2, y: position.y + spec.height / 2 }, metadata),
                 position,
                 width: spec.width,
                 height: spec.height,
             };
+            const newConnections = [createCanvasConnection(scriptNode.id, node.id), ...referenceIds.map((id) => createCanvasConnection(id, node.id))];
             nodesRef.current = [...nodesRef.current, node];
-            connectionsRef.current = [...connectionsRef.current, createCanvasConnection(scriptNode.id, node.id)];
+            connectionsRef.current = [...connectionsRef.current, ...newConnections];
             handleConfigNodeChange(scriptNode.id, {
                 scriptBeatOutputs: { ...(scriptNode.metadata?.scriptBeatOutputs ?? {}), [beat.id]: node.id },
                 scriptOutputIds: [...(scriptNode.metadata?.scriptOutputIds ?? []).filter((id) => id !== oldOutputId), node.id],
             });
             setNodes((prev) => [...prev, node]);
-            setConnections((prev) => [...prev, createCanvasConnection(scriptNode.id, node.id)]);
+            setConnections((prev) => [...prev, ...newConnections]);
             setSelectedNodeIds(new Set([node.id]));
             setSelectedConnectionId(null);
-            setDialogNodeId(null);
-            void handleGenerateNode(node.id, target, prompt, target === "comfyui" ? comfyui.defaultWorkflowId : undefined);
+            // 不直接生成：回到画布打开 composer，用户在确认卡片里调整提示词、参数和参考方式后才提交
+            setScriptStudioNodeId(null);
+            setDialogNodeId(node.id);
         },
-        [comfyui.defaultWorkflowId, createCanvasConnection, createCanvasNode, deleteNodes, effectiveConfig.model, effectiveConfig.videoModel, handleConfigNodeChange, handleGenerateNode],
+        [comfyui.defaultWorkflowId, createCanvasConnection, createCanvasNode, deleteNodes, effectiveConfig.model, effectiveConfig.videoModel, handleConfigNodeChange],
+    );
+
+    // 两段式第一步：为分镜创建图片节点（分镜帧），确认后才生成；帧节点随后作为视频生成的首帧参考
+    const createScriptBeatFrameNode = useCallback(
+        (scriptNode: CanvasNodeData, beat: CanvasScriptBeat, beatIndex: number) => {
+            const oldFrameId = scriptNode.metadata?.scriptBeatFrames?.[beat.id];
+            if (oldFrameId && nodesRef.current.some((node) => node.id === oldFrameId)) {
+                deleteNodes(new Set([oldFrameId]));
+                connectionsRef.current = connectionsRef.current.filter((conn) => conn.fromNodeId !== oldFrameId && conn.toNodeId !== oldFrameId);
+            }
+            const usableImageIds = new Set(nodesRef.current.filter((item) => item.type === CanvasNodeType.Image && (item.metadata?.content || item.metadata?.storageKey)).map((item) => item.id));
+            const scriptAssets = scriptNode.metadata?.scriptAssets ?? [];
+            const referenceIds = resolveScriptBeatReferenceIds(beat, scriptAssets, scriptNode.metadata?.scriptAssetOutputs ?? {}, (id) => usableImageIds.has(id));
+            const spec = NODE_DEFAULT_SIZE[CanvasNodeType.Image];
+            const position = { x: scriptNode.position.x + scriptNode.width + 96, y: scriptNode.position.y + beatIndex * (spec.height + 36) };
+            const prompt = resolveScriptBeatImagePrompt(beat, scriptAssets);
+            const node: CanvasNodeData = {
+                ...createCanvasNode(CanvasNodeType.Image, { x: position.x + spec.width / 2, y: position.y + spec.height / 2 }, { status: NODE_STATUS_IDLE, prompt, composerContent: prompt, generationMode: "image", generationType: "generation", model: effectiveConfig.imageModel || effectiveConfig.model }),
+                position,
+                width: spec.width,
+                height: spec.height,
+            };
+            const newConnections = [createCanvasConnection(scriptNode.id, node.id), ...referenceIds.map((id) => createCanvasConnection(id, node.id))];
+            nodesRef.current = [...nodesRef.current, node];
+            connectionsRef.current = [...connectionsRef.current, ...newConnections];
+            handleConfigNodeChange(scriptNode.id, {
+                scriptBeatFrames: { ...(scriptNode.metadata?.scriptBeatFrames ?? {}), [beat.id]: node.id },
+                scriptOutputIds: [...(scriptNode.metadata?.scriptOutputIds ?? []).filter((id) => id !== oldFrameId), node.id],
+            });
+            setNodes((prev) => [...prev, node]);
+            setConnections((prev) => [...prev, ...newConnections]);
+            setSelectedNodeIds(new Set([node.id]));
+            setSelectedConnectionId(null);
+            setScriptStudioNodeId(null);
+            setDialogNodeId(node.id);
+        },
+        [createCanvasConnection, createCanvasNode, deleteNodes, effectiveConfig.imageModel, effectiveConfig.model, handleConfigNodeChange],
     );
 
     const createScriptGridStoryboard = useCallback(
@@ -4934,7 +4980,7 @@ function LeaferCanvasPage() {
     );
 
     const exportScriptBeatNodes = useCallback(
-        (scriptNode: CanvasNodeData, target: "video" | "comfyui") => {
+        (scriptNode: CanvasNodeData, target: "video" | "comfyui" | "image") => {
             // 与工作台分镜表同源：未保存 scriptBeats 时按正文实时解析（含幕/场/镜结构）
             const body = scriptNode.metadata?.scriptBody?.trim() || scriptNode.metadata?.content?.trim() || "";
             const beats = scriptNode.metadata?.scriptBeats?.length ? scriptNode.metadata.scriptBeats : buildScriptBeats(body);
@@ -4942,15 +4988,20 @@ function LeaferCanvasPage() {
                 message.warning("分镜表为空，无法导出");
                 return;
             }
-            // 重复导出先替换上次批量导出的节点，避免同列叠加
-            const oldExportIds = new Set((scriptNode.metadata?.scriptExportIds ?? []).filter((id) => nodesRef.current.some((node) => node.id === id)));
+            const isImage = target === "image";
+            // 重复导出先替换上次同类批量导出的节点，避免同列叠加；分镜图与视频/ComfyUI 输出分开追踪
+            const oldExportIds = new Set(
+                (isImage ? Object.values(scriptNode.metadata?.scriptBeatFrames ?? {}) : (scriptNode.metadata?.scriptExportIds ?? [])).filter((id) => nodesRef.current.some((node) => node.id === id)),
+            );
             if (oldExportIds.size) {
                 deleteNodes(oldExportIds);
                 connectionsRef.current = connectionsRef.current.filter((conn) => !oldExportIds.has(conn.fromNodeId) && !oldExportIds.has(conn.toNodeId));
             }
-            const type = target === "video" ? CanvasNodeType.Video : CanvasNodeType.ComfyUI;
+            const type = isImage ? CanvasNodeType.Image : target === "video" ? CanvasNodeType.Video : CanvasNodeType.ComfyUI;
             const spec = NODE_DEFAULT_SIZE[type];
-            const startX = scriptNode.position.x + scriptNode.width + 96;
+            // 分镜图占脚本右侧第一列，视频/ComfyUI 输出再右移一列
+            const frameColumnWidth = NODE_DEFAULT_SIZE[CanvasNodeType.Image].width + 96;
+            const startX = scriptNode.position.x + scriptNode.width + 96 + (isImage ? 0 : frameColumnWidth);
             const startY = scriptNode.position.y;
             // 按幕分列：每幕一列，幕内按顺序纵向排列；无幕信息时保持单列
             const actOrder: string[] = [];
@@ -4960,29 +5011,40 @@ function LeaferCanvasPage() {
             });
             const columnByAct = new Map(actOrder.map((key, index) => [key, index]));
             const rowByColumn = new Map<number, number>();
+            const usableImageIds = new Set(nodesRef.current.filter((item) => item.type === CanvasNodeType.Image && (item.metadata?.content || item.metadata?.storageKey)).map((item) => item.id));
+            const scriptAssets = scriptNode.metadata?.scriptAssets ?? [];
+            const scriptAssetOutputs = scriptNode.metadata?.scriptAssetOutputs ?? {};
+            const scriptBeatFrames = scriptNode.metadata?.scriptBeatFrames ?? {};
             const exportedNodes = beats.map((beat) => {
-                const exportText = buildScriptBeatExportText(beat);
+                const exportText = isImage ? resolveScriptBeatImagePrompt(beat, scriptAssets) : buildScriptBeatExportText(beat);
+                const referenceIds = isImage
+                    ? resolveScriptBeatReferenceIds(beat, scriptAssets, scriptAssetOutputs, (id) => usableImageIds.has(id))
+                    : composeScriptBeatVideoReferenceIds(scriptBeatFrames[beat.id], beat, scriptAssets, scriptAssetOutputs, (id) => usableImageIds.has(id) && !oldExportIds.has(id));
                 const column = columnByAct.get(beat.act?.trim() || "") ?? 0;
                 const row = rowByColumn.get(column) ?? 0;
                 rowByColumn.set(column, row + 1);
                 const position = { x: startX + column * (spec.width + 96), y: startY + row * (spec.height + 36) };
                 const metadata: CanvasNodeMetadata =
                     target === "video"
-                        ? { status: NODE_STATUS_IDLE, prompt: exportText, composerContent: exportText, generationMode: "video", videoGenerationMode: "text-to-video", model: effectiveConfig.videoModel || effectiveConfig.model }
-                        : { status: NODE_STATUS_IDLE, composerContent: exportText, generationMode: "comfyui", comfyCapability: "text-to-video", comfyWorkflowId: comfyui.defaultWorkflowId };
+                        ? { status: NODE_STATUS_IDLE, prompt: exportText, composerContent: exportText, generationMode: "video", videoGenerationMode: deriveScriptBeatVideoMode(referenceIds.length), model: effectiveConfig.videoModel || effectiveConfig.model }
+                        : isImage
+                          ? { status: NODE_STATUS_IDLE, prompt: exportText, composerContent: exportText, generationMode: "image", generationType: "generation", model: effectiveConfig.imageModel || effectiveConfig.model }
+                          : { status: NODE_STATUS_IDLE, composerContent: exportText, generationMode: "comfyui", comfyCapability: "text-to-video", comfyWorkflowId: comfyui.defaultWorkflowId };
                 return {
                     beatId: beat.id,
+                    referenceIds,
                     ...createCanvasNode(type, { x: position.x + spec.width / 2, y: position.y + spec.height / 2 }, metadata),
                     position,
                     width: spec.width,
                     height: spec.height,
-                } satisfies CanvasNodeData & { beatId: string };
+                } satisfies CanvasNodeData & { beatId: string; referenceIds: string[] };
             });
             const outputIds = exportedNodes.map((node) => node.id);
             const beatOutputs = Object.fromEntries(exportedNodes.map((node) => [node.beatId, node.id]));
-            const newNodes = exportedNodes.map(({ beatId: _beatId, ...node }) => node);
+            const newNodes = exportedNodes.map(({ beatId: _beatId, referenceIds: _referenceIds, ...node }) => node);
+            const newConnections = exportedNodes.flatMap((node) => [createCanvasConnection(scriptNode.id, node.id), ...node.referenceIds.map((id) => createCanvasConnection(id, node.id))]);
             nodesRef.current = [...nodesRef.current, ...newNodes];
-            connectionsRef.current = [...connectionsRef.current, ...newNodes.map((node) => createCanvasConnection(scriptNode.id, node.id))];
+            connectionsRef.current = [...connectionsRef.current, ...newConnections];
             setNodes((prev) => [
                 ...prev.map((node) =>
                     node.id === scriptNode.id
@@ -4991,21 +5053,25 @@ function LeaferCanvasPage() {
                               metadata: {
                                   ...node.metadata,
                                   scriptOutputIds: [...(node.metadata?.scriptOutputIds ?? []).filter((id) => !oldExportIds.has(id)), ...outputIds],
-                                  scriptBeatOutputs: { ...Object.fromEntries(Object.entries(node.metadata?.scriptBeatOutputs ?? {}).filter(([, id]) => !oldExportIds.has(id))), ...beatOutputs },
-                                  scriptExportIds: outputIds,
+                                  ...(isImage
+                                      ? { scriptBeatFrames: beatOutputs }
+                                      : {
+                                            scriptBeatOutputs: { ...Object.fromEntries(Object.entries(node.metadata?.scriptBeatOutputs ?? {}).filter(([, id]) => !oldExportIds.has(id))), ...beatOutputs },
+                                            scriptExportIds: outputIds,
+                                        }),
                               },
                           }
                         : node,
                 ),
                 ...newNodes,
             ]);
-            setConnections((prev) => [...prev, ...newNodes.map((node) => createCanvasConnection(scriptNode.id, node.id))]);
+            setConnections((prev) => [...prev, ...newConnections]);
             setSelectedNodeIds(new Set(outputIds));
             setSelectedConnectionId(null);
             setDialogNodeId(newNodes[0]?.id ?? null);
-            message.success(`已导出 ${newNodes.length} 个分镜为${target === "video" ? "视频" : "ComfyUI"}节点，可在 composer 中继续编辑`);
+            message.success(`已导出 ${newNodes.length} 个分镜为${target === "video" ? "视频" : isImage ? "分镜图" : "ComfyUI"}节点，可在 composer 中继续编辑`);
         },
-        [comfyui.defaultWorkflowId, createCanvasConnection, createCanvasNode, deleteNodes, effectiveConfig.model, effectiveConfig.videoModel, message],
+        [comfyui.defaultWorkflowId, createCanvasConnection, createCanvasNode, deleteNodes, effectiveConfig.imageModel, effectiveConfig.model, effectiveConfig.videoModel, message],
     );
 
     const createScriptNarrationNode = useCallback((scriptNode: CanvasNodeData) => {
@@ -5727,10 +5793,18 @@ function LeaferCanvasPage() {
                 return "idle";
             };
             for (const [beatId, nodeId] of Object.entries(scriptStudioNode.metadata?.scriptBeatOutputs ?? {})) result[beatId] = stateOf(byId.get(nodeId));
+            for (const [beatId, nodeId] of Object.entries(scriptStudioNode.metadata?.scriptBeatFrames ?? {})) result[`${beatId}:frame`] = stateOf(byId.get(nodeId));
             for (const [assetId, nodeId] of Object.entries(scriptStudioNode.metadata?.scriptAssetOutputs ?? {})) result[assetId] = stateOf(byId.get(nodeId));
         }
         return result;
     }, [scriptStudioNode, nodes]);
+    const scriptReferenceOptions = useMemo(
+        () =>
+            nodes
+                .filter((node) => node.type === CanvasNodeType.Image && (node.metadata?.content || node.metadata?.storageKey))
+                .map((node) => ({ id: node.id, title: node.title || "图片", url: node.metadata?.content || "" })),
+        [nodes],
+    );
     const dialogNode = useMemo(() => {
         const node = dialogNodeId ? mountedNodeItems.find((item) => item.id === dialogNodeId) || null : null;
         return node?.metadata?.canvasTool === "director" ? null : node;
@@ -6119,10 +6193,11 @@ function LeaferCanvasPage() {
                         onAssetChange={(asset) => handleScriptAssetChange(scriptStudioNode, asset)}
                         onAssetAdd={(asset) => handleScriptAssetAdd(scriptStudioNode, asset)}
                         onAssetRemove={(assetId) => handleScriptAssetRemove(scriptStudioNode, assetId)}
-                        onGenerateBeat={(beat, index, target) => createScriptBeatNode(scriptStudioNode, beat, index, target)}
+                        onGenerateBeat={(beat, index, target) => (target === "image" ? createScriptBeatFrameNode(scriptStudioNode, beat, index) : createScriptBeatNode(scriptStudioNode, beat, index, target))}
                         onGenerateAsset={(asset, target) => generateScriptAssetNode(scriptStudioNode, asset, target)}
                         onExportBeats={(target) => exportScriptBeatNodes(scriptStudioNode, target)}
                         outputStates={scriptOutputStates}
+                        referenceOptions={scriptReferenceOptions}
                     />
                 ) : null}
 
@@ -7237,13 +7312,34 @@ function replaceStandaloneLabel(value: string, label: string, replacement: strin
 }
 
 async function fetchMediaBlob(media: { dataUrl?: string; url?: string; storageKey?: string; name?: string; type?: string }) {
-    const source = media.dataUrl || media.url || media.storageKey;
-    if (!source) throw new Error("无法读取媒体数据");
-    // CSP connect-src 不允许 data: URL 作为 fetch 目标，data URL 直接解码为 Blob
-    const blob = source.startsWith("data:") ? dataUrlToBlob(source) : await (await fetch(source)).blob();
+    const source = media.dataUrl || media.url || "";
+    if (!source && !media.storageKey) throw new Error("无法读取媒体数据");
+    let blob: Blob;
+    if (source.startsWith("data:")) {
+        // CSP connect-src 不允许 data: URL 作为 fetch 目标，data URL 直接解码为 Blob
+        blob = dataUrlToBlob(source);
+    } else {
+        // 优先按存储键读取（backend: 同源签名地址 / 浏览器本地媒体库）
+        const stored = media.storageKey ? await readStoredMediaBlob(media.storageKey, media.type).catch(() => null) : null;
+        if (stored) {
+            blob = stored;
+        } else {
+            const url = toFetchableMediaUrl(source, media.storageKey, window.location.origin);
+            if (!url) throw new Error("媒体引用已失效，请重新上传或重新生成");
+            const response = await fetch(url);
+            if (!response.ok) throw new Error(`读取参考媒体失败：HTTP ${response.status}`);
+            blob = await response.blob();
+        }
+    }
     const ext = blob.type.split("/")[1]?.split(";")[0] || "bin";
     const filename = `${media.name || `upload-${Date.now()}`}.${ext}`;
     return { blob, filename };
+}
+
+async function readStoredMediaBlob(storageKey: string, mimeType?: string) {
+    if (mimeType?.startsWith("video/") || mimeType?.startsWith("audio/")) return getMediaBlob(storageKey);
+    if (mimeType?.startsWith("image/")) return getImageBlob(storageKey);
+    return (await getImageBlob(storageKey)) || getMediaBlob(storageKey);
 }
 
 function buildAudioGenerationMetadata(config: AiConfig): CanvasNodeMetadata {
