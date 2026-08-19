@@ -357,14 +357,11 @@ export function ScriptDeskStudio({
                                     const option = referenceOptionById.get(id);
                                     return (
                                         <span key={id} className="relative block size-10 shrink-0" title={option?.title || "参考图"}>
-                                            <span className="block size-10 overflow-hidden rounded-md border" style={{ borderColor: theme.toolbar.border, background: theme.ui.controlFill }}>
-                                                {option?.url ? (
-                                                    <img src={option.url} alt={option.title} className="size-full object-cover" />
-                                                ) : (
-                                                    <span className="grid size-full place-items-center opacity-50">
-                                                        <ImageIcon className="size-4" />
-                                                    </span>
-                                                )}
+                                            <span className="relative block size-10 overflow-hidden rounded-md border" style={{ borderColor: theme.toolbar.border, background: theme.ui.controlFill }}>
+                                                <span className="grid size-full place-items-center opacity-50">
+                                                    <ImageIcon className="size-4" />
+                                                </span>
+                                                {option?.url ? <img src={option.url} alt={option.title} className="absolute inset-0 size-full object-cover" onError={(event) => (event.currentTarget.style.display = "none")} /> : null}
                                             </span>
                                             <button type="button" aria-label={`移除参考图 ${option?.title || ""}`} className="absolute right-0 top-0 grid size-7 place-items-center" onClick={() => setBeatRefs(beatRefIds.filter((item) => item !== id))}>
                                                 <span className="grid size-4 place-items-center rounded-full bg-black/70 text-white transition hover:bg-red-500/90">

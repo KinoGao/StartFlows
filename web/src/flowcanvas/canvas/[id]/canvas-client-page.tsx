@@ -5934,7 +5934,8 @@ function LeaferCanvasPage() {
         () =>
             nodes
                 .filter((node) => node.type === CanvasNodeType.Image && (node.metadata?.content || node.metadata?.storageKey))
-                .map((node) => ({ id: node.id, title: node.title || "图片", url: node.metadata?.content || "" })),
+                // content 可能是旧 origin（如 localhost）固化的绝对地址，统一改写为当前同源，避免隧道/换域名后缩略图裂图
+                .map((node) => ({ id: node.id, title: node.title || "图片", url: toFetchableMediaUrl(node.metadata?.content || "", node.metadata?.storageKey, window.location.origin) })),
         [nodes],
     );
     const dialogNode = useMemo(() => {
