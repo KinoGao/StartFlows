@@ -36,13 +36,15 @@ export type CanvasCreateMenuAction =
 
 const MENU_WIDTH = 272;
 
-/** 统一的「添加节点」菜单：右侧 dock +、双击空白、右键空白三个入口共用（对齐 TapNow）。position 为 client 坐标。 */
+/** 统一的「添加节点」菜单：dock +、双击空白、右键空白共用。position 为 client 坐标；placement="above" 时向上展开（底部 dock）。 */
 export function CanvasCreateNodeMenu({
     position,
+    placement = "auto",
     onAction,
     onClose,
 }: {
     position: { x: number; y: number };
+    placement?: "auto" | "above";
     onAction: (action: CanvasCreateMenuAction) => void;
     onClose: () => void;
 }) {
@@ -58,9 +60,10 @@ export function CanvasCreateNodeMenu({
             const padding = 8;
             const { width, height } = element.getBoundingClientRect();
             if (!width || !height) return;
+            const rawY = placement === "above" ? position.y - height - 8 : position.y;
             const nextPosition = {
                 x: Math.min(Math.max(padding, position.x), Math.max(padding, window.innerWidth - width - padding)),
-                y: Math.min(Math.max(padding, position.y), Math.max(padding, window.innerHeight - height - padding)),
+                y: Math.min(Math.max(padding, rawY), Math.max(padding, window.innerHeight - height - padding)),
             };
             setMenuPosition((current) => (current.x === nextPosition.x && current.y === nextPosition.y ? current : nextPosition));
         };
@@ -77,7 +80,7 @@ export function CanvasCreateNodeMenu({
             observer.disconnect();
             window.removeEventListener("resize", scheduleUpdate);
         };
-    }, [position.x, position.y]);
+    }, [position.x, position.y, placement]);
 
     useEffect(() => {
         const close = (event: PointerEvent) => {

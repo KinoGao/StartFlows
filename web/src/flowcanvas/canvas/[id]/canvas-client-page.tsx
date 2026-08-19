@@ -64,6 +64,7 @@ import { composeScriptBeatVideoReferenceIds, deriveScriptBeatVideoMode, resolveS
 import { toFetchableMediaUrl } from "../utils/canvas-media-fetch";
 import { estimateCanvasTaskPoints, type CanvasSessionPricing } from "../utils/canvas-points-estimate";
 import { stitchImagesToBlob } from "../utils/canvas-stitch";
+import { computeTidyLayout } from "../utils/canvas-tidy";
 import { ScriptDeskStudio, type ScriptOutputState } from "../components/script-desk-studio";
 import { canvasSelectionCenter, cloneCanvasSelection, CANVAS_SLASH_COMMANDS, type CanvasSlashCommand, type CanvasWorkflowTemplate } from "../utils/canvas-workflow-template";
 import { buildImageQuickCommandPrompt, CANVAS_IMAGE_QUICK_COMMANDS, type CanvasImageQuickCommand } from "../utils/canvas-image-quick-commands";
@@ -4937,6 +4938,79 @@ function LeaferCanvasPage() {
         [message],
     );
 
+    // 整理画布：按阅读顺序把所有节点重排为宫格（连线与内容不变）
+    const tidyCanvasLayout = useCallback(() => {
+        if (nodesRef.current.length < 2) return;
+        const layout = computeTidyLayout(nodesRef.current);
+        const next = nodesRef.current.map((node) => {
+            const position = layout.get(node.id);
+            return position ? { ...node, position } : node;
+        });
+        nodesRef.current = next;
+        setNodes(next);
+        message.success("已整理画布布局");
+    }, [message]);
+
+    // 空画布快捷模板（对齐 LibTV 空画布模板）：脚本流水线 / 角色三视图 / 首尾帧生视频 / 全能参考生视频
+    const applyCanvasTemplate = useCallback(
+        (template: "script" | "tripleView" | "framesVideo" | "allInOneVideo") => {
+            if (template === "script") {
+                createScriptNode();
+                return;
+            }
+            if (template === "tripleView") {
+                const prompt = "角色三视图设定图：同一角色的正面、半侧面、侧面三个视图并排，服装与发型一致，干净背景，电影质感";
+                createNode(CanvasNodeType.Image, {
+                    title: "角色三视图",
+                    metadata: { status: NODE_STATUS_IDLE, prompt, composerContent: prompt, generationMode: "image", generationType: "generation", model: effectiveConfig.imageModel || effectiveConfig.model },
+                });
+                return;
+            }
+            const center = getCanvasCenter();
+            const videoSpec = NODE_DEFAULT_SIZE[CanvasNodeType.Video];
+            const imageSpec = NODE_DEFAULT_SIZE[CanvasNodeType.Image];
+            const videoNode: CanvasNodeData = {
+                ...createCanvasNode(CanvasNodeType.Video, center, {
+                    status: NODE_STATUS_IDLE,
+                    generationMode: "video",
+                    videoGenerationMode: template === "framesVideo" ? "first-last-frame" : "all-in-one-reference",
+                    model: effectiveConfig.videoModel || effectiveConfig.model,
+                }),
+                position: { x: center.x - videoSpec.width / 2, y: center.y - videoSpec.height / 2 },
+                width: videoSpec.width,
+                height: videoSpec.height,
+            };
+            const newNodes = [videoNode];
+            const newConnections: CanvasConnection[] = [];
+            if (template === "framesVideo") {
+                (["首帧", "尾帧"] as const).forEach((label, index) => {
+                    const position = { x: center.x - videoSpec.width / 2 - imageSpec.width - 96, y: center.y - imageSpec.height + index * (imageSpec.height + 48) - 24 };
+                    const frameNode: CanvasNodeData = {
+                        ...createCanvasNode(
+                            CanvasNodeType.Image,
+                            { x: position.x + imageSpec.width / 2, y: position.y + imageSpec.height / 2 },
+                            { status: NODE_STATUS_IDLE, generationMode: "image", generationType: "generation", model: effectiveConfig.imageModel || effectiveConfig.model },
+                        ),
+                        title: label,
+                        position,
+                        width: imageSpec.width,
+                        height: imageSpec.height,
+                    };
+                    newNodes.push(frameNode);
+                    newConnections.push(createCanvasConnection(frameNode.id, videoNode.id));
+                });
+            }
+            nodesRef.current = [...nodesRef.current, ...newNodes];
+            connectionsRef.current = [...connectionsRef.current, ...newConnections];
+            setNodes((prev) => [...prev, ...newNodes]);
+            setConnections((prev) => [...prev, ...newConnections]);
+            setSelectedNodeIds(new Set([videoNode.id]));
+            setSelectedConnectionId(null);
+            setDialogNodeId(videoNode.id);
+        },
+        [createCanvasConnection, createCanvasNode, createNode, createScriptNode, effectiveConfig.imageModel, effectiveConfig.model, effectiveConfig.videoModel, getCanvasCenter],
+    );
+
     const createScriptGridStoryboard = useCallback(
         (scriptNode: CanvasNodeData, command: CanvasSlashCommand) => {
             const body = scriptNode.metadata?.scriptBody?.trim() || scriptNode.metadata?.content?.trim() || DEFAULT_SCRIPT_BODY;
@@ -6390,6 +6464,38 @@ function LeaferCanvasPage() {
                     />
                 ) : null}
 
+                {projectLoaded && nodes.length === 0 ? (
+                    <div className="pointer-events-none absolute inset-0 z-40 grid place-items-center">
+                        <div className="pointer-events-auto w-[min(92vw,600px)]">
+                            <div className="mb-3 text-center text-sm" style={{ color: theme.node.muted }}>
+                                从模板开始，或双击空白自由创建节点
+                            </div>
+                            <div className="grid grid-cols-2 gap-3">
+                                {(
+                                    [
+                                        { key: "script", icon: <Clapperboard className="size-5" />, title: "故事脚本生成", desc: "剧本拆解分镜，逐镜出帧图与视频" },
+                                        { key: "tripleView", icon: <ImageIcon className="size-5" />, title: "角色三视图", desc: "一张设定图锁定角色外观做垫图" },
+                                        { key: "framesVideo", icon: <Images className="size-5" />, title: "首尾帧生视频", desc: "首帧 + 尾帧两张图生成过渡视频" },
+                                        { key: "allInOneVideo", icon: <Video className="size-5" />, title: "全能参考生视频", desc: "图片 / 视频 / 音频参考混排生成" },
+                                    ] as const
+                                ).map((item) => (
+                                    <button
+                                        key={item.key}
+                                        type="button"
+                                        className="flex flex-col items-start gap-1.5 rounded-2xl border p-4 text-left transition hover:brightness-110"
+                                        style={{ borderColor: theme.toolbar.border, background: theme.node.fill, color: theme.node.text }}
+                                        onClick={() => applyCanvasTemplate(item.key)}
+                                    >
+                                        <span style={{ color: theme.ui.accent }}>{item.icon}</span>
+                                        <span className="text-sm font-medium">{item.title}</span>
+                                        <span className="text-xs opacity-55">{item.desc}</span>
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+                ) : null}
+
                 <CanvasToolbar
                     selectedCount={selectedNodeIds.size}
                     canUndo={historyState.canUndo}
@@ -6428,6 +6534,7 @@ function LeaferCanvasPage() {
                     onReset={resetViewport}
                     isMiniMapOpen={isMiniMapOpen}
                     onToggleMiniMap={() => setIsMiniMapOpen((value) => !value)}
+                    onTidy={tidyCanvasLayout}
                     onOpenMyAssets={() => {
                         setCanvasAssetPanelInitialTab("canvas");
                         setCanvasAssetPanelOpen(true);

@@ -1,5 +1,5 @@
 import type { CSSProperties, MouseEvent as ReactMouseEvent, ReactNode, RefObject } from "react";
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Button, Modal, Segmented, Switch } from "antd";
 import {
     Boxes,
@@ -99,13 +99,11 @@ export function CanvasToolbar({
     const [appearanceOpen, setAppearanceOpen] = useState(false);
     const [materialOpen, setMaterialOpen] = useState(false);
     const [shortcutsOpen, setShortcutsOpen] = useState(false);
-    const [panelPosition, setPanelPosition] = useState<DockPosition>({ x: 0, y: 0 });
-    const [panelTop, setPanelTop] = useState(16);
+    const [panelLeft, setPanelLeft] = useState(16);
     const dockStyle = { background: theme.ui.material, borderColor: theme.ui.hairline, color: theme.toolbar.item, boxShadow: theme.ui.shadow };
     const hoverStyle = { background: theme.toolbar.itemHover, color: theme.toolbar.activeText };
     const activeStyle = { background: theme.toolbar.activeBg, color: theme.toolbar.activeText };
     const tip = hovered ? toolLabel(hovered) : "";
-    const dockPanelOpen = addMenuOpen || appearanceOpen || materialOpen;
 
     const closeDockPopovers = () => {
         setAddMenuOpen(false);
@@ -116,10 +114,16 @@ export function CanvasToolbar({
 
     const openPanelAt = (event: ReactMouseEvent<HTMLElement>, panel: "add" | "appearance" | "material") => {
         setShortcutsOpen(false);
-        setPanelPosition(getDockPosition(wrapRef.current, event.currentTarget));
+        const root = wrapRef.current?.parentElement?.getBoundingClientRect();
+        const box = event.currentTarget.getBoundingClientRect();
         if (panel === "add") {
-            const box = event.currentTarget.getBoundingClientRect();
-            setAddMenuAnchor({ x: box.left - 8, y: box.top + box.height / 2 });
+            // 底部横排 dock：添加菜单在按钮上方展开
+            setAddMenuAnchor({ x: box.left + box.width / 2 - 136, y: box.top });
+        } else {
+            const panelWidth = panel === "material" ? 196 : 248;
+            const centerX = box.left - (root?.left ?? 0) + box.width / 2;
+            const maxLeft = Math.max(8, (root?.width ?? window.innerWidth) - panelWidth - 8);
+            setPanelLeft(Math.min(Math.max(8, centerX - panelWidth / 2), maxLeft));
         }
         setAddMenuOpen(panel === "add" ? (value) => !value : false);
         setAppearanceOpen(panel === "appearance" ? (value) => !value : false);
@@ -130,29 +134,10 @@ export function CanvasToolbar({
         if (assetPanelOpen) closeDockPopovers();
     }, [assetPanelOpen]);
 
-    useLayoutEffect(() => {
-        if (!dockPanelOpen || !panelRef.current || window.matchMedia("(max-width: 760px)").matches) return;
-
-        const updatePanelTop = () => {
-            const root = wrapRef.current?.parentElement?.getBoundingClientRect();
-            const panelHeight = panelRef.current?.getBoundingClientRect().height ?? 0;
-            const viewportHeight = root?.height ?? window.innerHeight;
-            const nextTop = Math.min(
-                Math.max(16, viewportHeight - panelHeight - 16),
-                Math.max(16, panelPosition.y - panelHeight / 2),
-            );
-            setPanelTop((current) => (Math.abs(current - nextTop) < 0.5 ? current : nextTop));
-        };
-
-        updatePanelTop();
-        window.addEventListener("resize", updatePanelTop);
-        return () => window.removeEventListener("resize", updatePanelTop);
-    }, [dockPanelOpen, panelPosition.y]);
-
     return (
-        <div className="pointer-events-none absolute inset-0 z-50 flex items-center justify-end p-4 max-md:items-end max-md:justify-center max-md:px-4 max-md:pb-4">
+        <div className="pointer-events-none absolute inset-0 z-50 flex items-end justify-center p-4">
             {tip ? <DockTip label={tip} position={tipPosition} theme={theme} /> : null}
-            <div ref={wrapRef} className="creative-os-dock pointer-events-auto flex w-14 max-h-[calc(100vh-160px)] flex-col items-center gap-1 overflow-x-hidden overflow-y-auto border px-1 py-2 [&>*]:shrink-0 max-md:h-14 max-md:w-auto max-md:max-w-full max-md:flex-row max-md:overflow-x-auto max-md:overflow-y-hidden max-md:px-2 max-md:py-0" style={dockStyle}>
+            <div ref={wrapRef} className="creative-os-dock pointer-events-auto flex h-14 flex-row items-center gap-1 border px-2 [&>*]:shrink-0" style={dockStyle}>
                 <ToolbarButton id="tool-add" label="添加节点" active={addMenuOpen} activeStyle={activeStyle} hovered={hovered} hoverStyle={hoverStyle} wrapRef={wrapRef} onTipPosition={setTipPosition} onHover={setHovered} onClick={(event) => openPanelAt(event, "add")}>
                     <Plus className="size-5" />
                 </ToolbarButton>
@@ -204,6 +189,7 @@ export function CanvasToolbar({
             {!assetPanelOpen && addMenuOpen ? (
                 <CanvasCreateNodeMenu
                     position={addMenuAnchor}
+                    placement="above"
                     onClose={() => setAddMenuOpen(false)}
                     onAction={(action) => {
                         setAddMenuOpen(false);
@@ -216,7 +202,7 @@ export function CanvasToolbar({
                 <div
                     ref={panelRef}
                     className="canvas-toolbar-popover creative-os-panel pointer-events-auto absolute z-30 w-[196px] rounded-[8px] border p-2"
-                    style={{ right: panelPosition.x || "50%", top: panelTop, background: theme.ui.materialElevated, borderColor: theme.ui.hairline, color: theme.node.text }}
+                    style={{ left: panelLeft, bottom: 80, background: theme.ui.materialElevated, borderColor: theme.ui.hairline, color: theme.node.text }}
                 >
                     <AddNodeOption theme={theme} icon={<Sparkles className="size-4" />} label="风格库" tag="NEW" onClick={() => onOpenMaterialLibrary("styles")} onClose={() => setMaterialOpen(false)} />
                     <AddNodeOption theme={theme} icon={<WandSparkles className="size-4" />} label="效果库" tag="NEW" onClick={() => onOpenMaterialLibrary("effects")} onClose={() => setMaterialOpen(false)} />
@@ -230,7 +216,7 @@ export function CanvasToolbar({
                 <div
                     ref={panelRef}
                     className="canvas-toolbar-popover creative-os-panel pointer-events-auto absolute z-30 w-[248px] rounded-[8px] border p-2.5"
-                    style={{ right: panelPosition.x || "50%", top: panelTop, background: theme.ui.materialElevated, borderColor: theme.ui.hairline, color: theme.toolbar.item }}
+                    style={{ left: panelLeft, bottom: 80, background: theme.ui.materialElevated, borderColor: theme.ui.hairline, color: theme.toolbar.item }}
                 >
                     <div className="px-1 pb-2 text-sm font-medium opacity-65">画布外观</div>
                     <div className="px-1 pb-1.5 text-[11px] font-medium opacity-50">主题模式</div>
@@ -384,7 +370,7 @@ function ToolbarButton({
 }
 
 function Divider({ theme }: { theme: CanvasTheme }) {
-    return <div className="my-1 h-px w-6 max-md:mx-1 max-md:my-0 max-md:h-6 max-md:w-px" style={{ background: theme.toolbar.border }} />;
+    return <div className="mx-1 h-6 w-px" style={{ background: theme.toolbar.border }} />;
 }
 
 function DividerBlock({ theme }: { theme: CanvasTheme }) {
@@ -499,7 +485,7 @@ function DockTip({ label, position, theme }: { label: string; position: DockPosi
     return (
         <span
             className="canvas-toolbar-tip pointer-events-none absolute z-[60] whitespace-nowrap rounded-md px-2 py-1 text-xs shadow-lg"
-            style={{ right: position.x, top: position.y, background: theme.node.text, color: theme.node.panel }}
+            style={{ left: position.x, top: position.y, transform: "translate(-50%, calc(-100% - 12px))", background: theme.node.text, color: theme.node.panel }}
         >
             {label}
         </span>
@@ -527,9 +513,9 @@ function getDockPosition(wrap: HTMLDivElement | null, target: HTMLElement): Dock
     if (!wrap) return { x: 0, y: 0 };
     const root = wrap.parentElement?.getBoundingClientRect() || wrap.getBoundingClientRect();
     const box = target.getBoundingClientRect();
-    // dock 在右侧：返回按钮中心到容器右边缘的偏移，弹出面板/提示从 dock 左侧展开
+    // dock 在底部横排：返回按钮中心相对容器左边缘的偏移，提示在按钮上方居中展开
     return {
-        x: root.right - box.left - box.width / 2,
+        x: box.left - root.left + box.width / 2,
         y: box.top - root.top + box.height / 2,
     };
 }

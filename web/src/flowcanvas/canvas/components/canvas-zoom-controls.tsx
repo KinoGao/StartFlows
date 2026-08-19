@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { Button, Tooltip } from "antd";
-import { Compass, Focus, FolderOpen, Minus, Plus } from "lucide-react";
+import { Button, Popconfirm, Tooltip } from "antd";
+import { Compass, Focus, FolderOpen, LayoutGrid, Minus, Plus } from "lucide-react";
 
 import { canvasThemes } from "@/flowcanvas/lib/canvas-theme";
 import { useThemeStore } from "@/flowcanvas/stores/use-theme-store";
@@ -13,9 +13,10 @@ type CanvasZoomControlsProps = {
     isMiniMapOpen: boolean;
     onToggleMiniMap: () => void;
     onOpenMyAssets: () => void;
+    onTidy: () => void;
 };
 
-export function CanvasZoomControls({ scale, onScaleChange, onReset, isMiniMapOpen, onToggleMiniMap, onOpenMyAssets }: CanvasZoomControlsProps) {
+export function CanvasZoomControls({ scale, onScaleChange, onReset, isMiniMapOpen, onToggleMiniMap, onOpenMyAssets, onTidy }: CanvasZoomControlsProps) {
     const [zoomOpen, setZoomOpen] = useState(false);
     const colorTheme = useThemeStore((state) => state.theme);
     const theme = canvasThemes[colorTheme];
@@ -63,6 +64,11 @@ export function CanvasZoomControls({ scale, onScaleChange, onReset, isMiniMapOpe
                         <FolderOpen className="size-4" />
                     </button>
                 </Tooltip>
+                <Popconfirm title="整理画布？" description="将按阅读顺序把所有节点重排为宫格布局，节点内容和连线不变。" okText="整理" cancelText="取消" onConfirm={onTidy}>
+                    <button type="button" className="creative-os-icon-button !size-8" style={{ color: theme.toolbar.item }} aria-label="整理画布">
+                        <LayoutGrid className="size-4" />
+                    </button>
+                </Popconfirm>
                 <Tooltip title={isMiniMapOpen ? "关闭小地图" : "打开小地图"}>
                     <Button type="text" className="creative-os-icon-button !size-8 !min-w-8 !p-0" style={isMiniMapOpen ? activeStyle : { color: theme.toolbar.item }} icon={<Compass className="size-4" />} onClick={onToggleMiniMap} aria-label={isMiniMapOpen ? "关闭小地图" : "打开小地图"} />
                 </Tooltip>
