@@ -2,7 +2,7 @@
 
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
-import { Plus, Trash2 } from "lucide-react";
+import { ClipboardPaste, Download, FolderPlus, Plus, Redo2, Trash2, Undo2, Upload } from "lucide-react";
 
 import { canvasThemes } from "@/flowcanvas/lib/canvas-theme";
 import { useThemeStore } from "@/flowcanvas/stores/use-theme-store";
@@ -13,11 +13,19 @@ export function CanvasNodeContextMenu({
     onClose,
     onDuplicate,
     onDelete,
+    canDownload = false,
+    canSaveAsset = false,
+    onDownload,
+    onSaveAsset,
 }: {
     menu: ContextMenuState;
     onClose: () => void;
     onDuplicate: () => void;
     onDelete: () => void;
+    canDownload?: boolean;
+    canSaveAsset?: boolean;
+    onDownload?: () => void;
+    onSaveAsset?: () => void;
 }) {
     const theme = canvasThemes[useThemeStore((state) => state.theme)];
     const menuRef = useRef<HTMLDivElement>(null);
@@ -76,19 +84,99 @@ export function CanvasNodeContextMenu({
             style={{ left: menuPosition.x, top: menuPosition.y, background: theme.toolbar.panel, borderColor: theme.toolbar.border, color: theme.node.text }}
             onPointerDown={(event) => event.stopPropagation()}
         >
-            {menu.type === "node" ? <MenuButton icon={<Plus className="size-4" />} label="Duplicate" onClick={onDuplicate} /> : null}
-            <MenuButton icon={<Trash2 className="size-4" />} label="Delete" onClick={onDelete} danger />
+            {menu.type === "node" ? <MenuButton icon={<Plus className="size-4" />} label="创建副本" onClick={onDuplicate} /> : null}
+            {menu.type === "node" && canDownload ? <MenuButton icon={<Download className="size-4" />} label="下载" onClick={onDownload} /> : null}
+            {menu.type === "node" && canSaveAsset ? <MenuButton icon={<FolderPlus className="size-4" />} label="加入我的素材" onClick={onSaveAsset} /> : null}
+            <MenuButton icon={<Trash2 className="size-4" />} label="删除" onClick={onDelete} danger />
         </div>
     );
 }
 
-function MenuButton({ icon, label, onClick, danger = false }: { icon: ReactNode; label: string; onClick?: () => void; danger?: boolean }) {
+function MenuButton({ icon, label, onClick, danger = false, disabled = false, shortcut }: { icon: ReactNode; label: string; onClick?: () => void; danger?: boolean; disabled?: boolean; shortcut?: string }) {
     const theme = canvasThemes[useThemeStore((state) => state.theme)];
 
     return (
-        <button type="button" className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs transition-colors hover:opacity-80" style={{ color: danger ? theme.ui.danger : theme.node.text }} onClick={onClick}>
+        <button
+            type="button"
+            disabled={disabled}
+            className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs transition-colors hover:opacity-80 disabled:cursor-default disabled:opacity-35 disabled:hover:opacity-35"
+            style={{ color: danger ? theme.ui.danger : theme.node.text }}
+            onClick={onClick}
+        >
             {icon}
             <span>{label}</span>
+            {shortcut ? <span className="ml-auto pl-6 text-[10px]" style={{ color: theme.node.muted }}>{shortcut}</span> : null}
         </button>
+    );
+}
+
+/** 画布空白区域右键菜单（对齐 LibTV：上传/添加节点/撤销/重做/粘贴）。 */
+export function CanvasContextMenu({
+    menu,
+    canUndo,
+    canRedo,
+    canPaste,
+    onClose,
+    onUpload,
+    onAddNode,
+    onUndo,
+    onRedo,
+    onPaste,
+}: {
+    menu: { x: number; y: number };
+    canUndo: boolean;
+    canRedo: boolean;
+    canPaste: boolean;
+    onClose: () => void;
+    onUpload: () => void;
+    onAddNode: () => void;
+    onUndo: () => void;
+    onRedo: () => void;
+    onPaste: () => void;
+}) {
+    const theme = canvasThemes[useThemeStore((state) => state.theme)];
+    const menuRef = useRef<HTMLDivElement>(null);
+    const [menuPosition, setMenuPosition] = useState(() => ({ x: menu.x, y: menu.y }));
+
+    useLayoutEffect(() => {
+        const element = menuRef.current;
+        if (!element) return;
+        const padding = 8;
+        const { width, height } = element.getBoundingClientRect();
+        if (!width || !height) return;
+        setMenuPosition({
+            x: Math.min(Math.max(padding, menu.x), Math.max(padding, window.innerWidth - width - padding)),
+            y: Math.min(Math.max(padding, menu.y), Math.max(padding, window.innerHeight - height - padding)),
+        });
+    }, [menu.x, menu.y]);
+
+    useEffect(() => {
+        const close = () => onClose();
+        const closeOnEscape = (event: KeyboardEvent) => {
+            if (event.key === "Escape") onClose();
+        };
+        window.addEventListener("pointerdown", close);
+        window.addEventListener("keydown", closeOnEscape);
+        return () => {
+            window.removeEventListener("pointerdown", close);
+            window.removeEventListener("keydown", closeOnEscape);
+        };
+    }, [onClose]);
+
+    return (
+        <div
+            ref={menuRef}
+            className="fixed z-[80] min-w-44 overflow-hidden rounded-xl border py-1 shadow-2xl"
+            style={{ left: menuPosition.x, top: menuPosition.y, background: theme.toolbar.panel, borderColor: theme.toolbar.border, color: theme.node.text }}
+            onPointerDown={(event) => event.stopPropagation()}
+        >
+            <MenuButton icon={<Upload className="size-4" />} label="上传" onClick={onUpload} />
+            <MenuButton icon={<Plus className="size-4" />} label="添加节点" onClick={onAddNode} />
+            <div className="mx-2 my-1 border-t" style={{ borderColor: theme.toolbar.border }} />
+            <MenuButton icon={<Undo2 className="size-4" />} label="撤销" shortcut="Ctrl+Z" disabled={!canUndo} onClick={onUndo} />
+            <MenuButton icon={<Redo2 className="size-4" />} label="重做" shortcut="Ctrl+Shift+Z" disabled={!canRedo} onClick={onRedo} />
+            <div className="mx-2 my-1 border-t" style={{ borderColor: theme.toolbar.border }} />
+            <MenuButton icon={<ClipboardPaste className="size-4" />} label="粘贴" shortcut="Ctrl+V" disabled={!canPaste} onClick={onPaste} />
+        </div>
     );
 }

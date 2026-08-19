@@ -13,7 +13,9 @@ import {
     Keyboard,
     Layers3,
     Link2,
+    Hand,
     Moon,
+    MousePointer2,
     Palette,
     Plus,
     Redo2,
@@ -37,6 +39,8 @@ export function CanvasToolbar({
     selectedCount,
     canUndo,
     canRedo,
+    interactionMode,
+    onInteractionModeChange,
     backgroundMode,
     snapToGrid,
     alignmentGuidesEnabled,
@@ -63,6 +67,8 @@ export function CanvasToolbar({
     selectedCount: number;
     canUndo: boolean;
     canRedo: boolean;
+    interactionMode: "pan" | "select";
+    onInteractionModeChange: (mode: "pan" | "select") => void;
     backgroundMode: CanvasBackgroundMode;
     snapToGrid: boolean;
     alignmentGuidesEnabled: boolean;
@@ -140,6 +146,12 @@ export function CanvasToolbar({
             <div ref={wrapRef} className="creative-os-dock pointer-events-auto flex h-14 flex-row items-center gap-1 border px-2 [&>*]:shrink-0" style={dockStyle}>
                 <ToolbarButton id="tool-add" label="添加节点" active={addMenuOpen} activeStyle={activeStyle} hovered={hovered} hoverStyle={hoverStyle} wrapRef={wrapRef} onTipPosition={setTipPosition} onHover={setHovered} onClick={(event) => openPanelAt(event, "add")}>
                     <Plus className="size-5" />
+                </ToolbarButton>
+                <ToolbarButton id="tool-select-mode" label="框选模式 · 拖框选择节点" active={interactionMode === "select"} activeStyle={activeStyle} hovered={hovered} hoverStyle={hoverStyle} wrapRef={wrapRef} onTipPosition={setTipPosition} onHover={setHovered} onClick={() => onInteractionModeChange("select")}>
+                    <MousePointer2 className="size-4.5" />
+                </ToolbarButton>
+                <ToolbarButton id="tool-pan-mode" label="小手模式 · 拖动画布" active={interactionMode === "pan"} activeStyle={activeStyle} hovered={hovered} hoverStyle={hoverStyle} wrapRef={wrapRef} onTipPosition={setTipPosition} onHover={setHovered} onClick={() => onInteractionModeChange("pan")}>
+                    <Hand className="size-4.5" />
                 </ToolbarButton>
                 <Divider theme={theme} />
                 <ToolbarButton id="tool-material" label="素材库" active={materialOpen} activeStyle={activeStyle} hovered={hovered} hoverStyle={hoverStyle} wrapRef={wrapRef} onTipPosition={setTipPosition} onHover={setHovered} onClick={(event) => openPanelAt(event, "material")}>
@@ -496,6 +508,8 @@ function toolLabel(id: string) {
     if (id === 'tool-group') return '成组';
     if (id === 'tool-storyboard-group') return '分镜组';
     if (id === "tool-add") return "添加节点";
+    if (id === "tool-select-mode") return "框选模式 · 拖框选择";
+    if (id === "tool-pan-mode") return "小手模式 · 拖动画布";
     if (id === "tool-material") return "素材库";
     if (id === "tool-workflow-toolbox") return "工具箱";
     if (id === "tool-undo") return "撤销";

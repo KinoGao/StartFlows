@@ -22,6 +22,8 @@ type LeaferCanvasProps = {
     connections: CanvasConnection[];
     backgroundMode?: CanvasBackgroundMode;
     alignmentGuides?: CanvasAlignmentGuides | null;
+    /** 交互模式：pan=小手（左键空白平移），select=框选（左键空白框选）。 */
+    interactionMode?: "pan" | "select";
     selectedNodeIds: Set<string>;
     selectedConnectionId: string | null;
     relatedNodeIds?: Set<string>;
@@ -29,7 +31,7 @@ type LeaferCanvasProps = {
     onViewportChange: (viewport: ViewportTransform) => void;
     onViewportPresentation?: (viewport: ViewportTransform) => void;
     onNodePointerDown?: (nodeId: string, modifiers: { shiftKey: boolean; ctrlKey: boolean; metaKey: boolean }) => boolean;
-    onNodeTap?: (nodeId: string) => void;
+    onNodeTap?: (nodeId: string, modifiers: { shiftKey: boolean; ctrlKey: boolean; metaKey: boolean }) => void;
     onNodeDragStart?: (nodeId: string) => void;
     resolveNodeMove?: (nodeId: string, position: { x: number; y: number }) => { x: number; y: number };
     onNodesTransform?: (updates: Array<{ id: string; position: { x: number; y: number }; width: number; height: number }>) => void;
@@ -75,6 +77,17 @@ type LeaferConnectionVisual = {
     styleSignature: string;
 };
 
+/**
+ * 交互模式同步到 Leafer 交互配置：
+ * - pan（小手）：启用 move.dragEmpty，空白处左键拖拽平移画布（Leafer 原生 moveMode，节点/连线命中仍走拖动点选）；
+ * - select（框选）：恢复默认，空白处左键拖拽框选。
+ * 空白画布的 pointerdown 在 React 侧会被 data-leafer-editor-layer 早退拦截，必须由 Leafer 自身承担平移。
+ */
+function applyInteractionMode(app: LUI.App, mode: "pan" | "select") {
+    const interaction = (app as unknown as { interaction?: { config?: { move?: { dragEmpty?: boolean } } } }).interaction;
+    if (interaction?.config?.move) interaction.config.move.dragEmpty = mode === "pan";
+}
+
 export function LeaferCanvas({
     containerRef,
     viewport,
@@ -82,6 +95,7 @@ export function LeaferCanvas({
     connections = EMPTY_CONNECTIONS,
     backgroundMode = "dots",
     alignmentGuides,
+    interactionMode = "select",
     selectedNodeIds,
     selectedConnectionId,
     relatedNodeIds,
@@ -194,6 +208,7 @@ export function LeaferCanvas({
     const connectionStartCanvasPointRef = useRef<{ x: number; y: number } | null>(null);
     const connectionTargetNodeIdRef = useRef(connectionTargetNodeId); connectionTargetNodeIdRef.current = connectionTargetNodeId;
     const isSpacePressedRef = useRef(isSpacePressed); isSpacePressedRef.current = isSpacePressed;
+    const interactionModeRef = useRef(interactionMode); interactionModeRef.current = interactionMode;
     const connectStartScreenRef = useRef<{ x: number; y: number } | null>(null);
     const lastNodeDoubleTapAtRef = useRef(0);
     const callbacksRef = useRef({ onViewportChange, onViewportPresentation, onNodePointerDown, onNodeTap, onNodeDragStart, resolveNodeMove, onNodesTransform, onNodesTransformEnd, onNodeHoverChange, onNodeContextMenu, onCanvasMouseDown, onCanvasDeselect, onConnectStart, onConnectEnd, onConnect, onEdgeClick, onEdgeContextMenu, onDrop, onSelectionBox, onConnectionTargetChange, onContextMenu, onCanvasDoubleClick });
@@ -714,6 +729,7 @@ export function LeaferCanvas({
         const editor = app.editor as Editor;
         leaferRef.current = app;
         editorRef.current = editor;
+        applyInteractionMode(app, interactionModeRef.current);
         syncEditorViewport(viewportRef.current);
 
         const background = new LUI.Canvas({
@@ -851,6 +867,12 @@ export function LeaferCanvas({
         };
     }, [beginEditorTransform, drawBackground, flushEditorTransform, getNodeElement, presentLeaferViewport, refreshNodeInteractionVisual, reportCanvasReady, syncEditorViewport, syncSkyOverlays]);
 
+    // 交互模式切换：跟随 interactionMode 更新 Leafer 交互配置（App 重建时由创建 effect 内的初始同步兜底）
+    useEffect(() => {
+        const app = leaferRef.current;
+        if (app) applyInteractionMode(app, interactionMode);
+    }, [interactionMode]);
+
     useEffect(() => {
         const app = leaferRef.current;
         const editor = editorRef.current;
@@ -898,7 +920,13 @@ export function LeaferCanvas({
                         metaKey: Boolean(event.metaKey),
                     });
                 });
-                rect.on(LUI.PointerEvent.TAP, () => callbacksRef.current.onNodeTap?.(node.id));
+                rect.on(LUI.PointerEvent.TAP, (event: LUI.PointerEvent) =>
+                    callbacksRef.current.onNodeTap?.(node.id, {
+                        shiftKey: Boolean(event.shiftKey),
+                        ctrlKey: Boolean(event.ctrlKey),
+                        metaKey: Boolean(event.metaKey),
+                    }),
+                );
                 rect.on(LUI.PointerEvent.DOUBLE_TAP, () => {
                     lastNodeDoubleTapAtRef.current = Date.now();
                     const element = containerRef.current?.querySelector<HTMLElement>(`[data-node-id="${CSS.escape(node.id)}"] .creative-os-node`);
@@ -1390,6 +1418,7 @@ export function LeaferCanvas({
         // Leafer owns hit testing, selection, box selection, node transforms and viewport gestures.
         if (target.closest("[data-leafer-editor-layer]")) return;
 
+        // 中键/空格平移保持全区域生效（覆盖节点内交互元素）；空白画布的小手模式平移由 Leafer move.dragEmpty 承担
         const shouldPanFromPointer = event.button === 1 || (event.button === 0 && isSpacePressedRef.current);
         if (shouldPanFromPointer && !isHandle) {
             dragRef.current = {
@@ -1631,7 +1660,7 @@ export function LeaferCanvas({
         ["--canvas-k" as string]: String(viewport.k),
     }) as React.CSSProperties, [viewport.x, viewport.y, viewport.k]);
 
-    const cursor = isSpacePressed ? "grab" : "default";
+    const cursor = isSpacePressed ? "grab" : interactionMode === "pan" ? "grab" : "default";
 
     return (
         <div

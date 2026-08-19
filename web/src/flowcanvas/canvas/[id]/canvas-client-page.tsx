@@ -29,7 +29,7 @@ import { App, Button, Dropdown, Modal, message } from "antd";
 import { NODE_DEFAULT_SIZE, getConfigNodeHeight, getNodeSpec } from "../constants";
 import { CanvasConfigComposer } from "../components/canvas-config-composer";
 import { CanvasWorkflowToolbox } from "../components/canvas-workflow-toolbox";
-import { CanvasNodeContextMenu } from "../components/canvas-context-menu";
+import { CanvasContextMenu, CanvasNodeContextMenu } from "../components/canvas-context-menu";
 import { CanvasCreateNodeMenu, type CanvasCreateMenuAction } from "../components/canvas-create-node-menu";
 import { ErrorBoundary } from "@/flowcanvas/components/ui/error-boundary";
 import { BackendWorkspaceGate } from "@/flowcanvas/components/layout/backend-workspace-gate";
@@ -62,7 +62,8 @@ import { buildAssetPrompt } from "../utils/canvas-script-ai";
 import { resolveScriptBeatImagePrompt, buildScriptBeatPromptsSynthPrompt, parseScriptBeatPromptsResponse, resolveScriptBeatVideoPrompt } from "../utils/canvas-script-ai";
 import { composeScriptBeatVideoReferenceIds, deriveScriptBeatVideoMode, resolveScriptBeatReferenceIds } from "../utils/canvas-script-references";
 import { toFetchableMediaUrl } from "../utils/canvas-media-fetch";
-import { estimateCanvasTaskPoints, type CanvasSessionPricing } from "../utils/canvas-points-estimate";
+import { estimateCanvasTaskPoints } from "../utils/canvas-points-estimate";
+import { useSessionPricing } from "../hooks/use-session-pricing";
 import { stitchImagesToBlob } from "../utils/canvas-stitch";
 import { computeTidyLayout } from "../utils/canvas-tidy";
 import { ScriptDeskStudio, type ScriptOutputState } from "../components/script-desk-studio";
@@ -2933,7 +2934,8 @@ function LeaferCanvasPage() {
     }, []);
 
     const downloadNodeImage = useCallback(async (node: CanvasNodeData) => {
-        if ((node.type !== CanvasNodeType.Image && node.type !== CanvasNodeType.Video && node.type !== CanvasNodeType.Audio) || !node.metadata?.content) return;
+        // storageKey-only 节点同样可下载：resolveNodeContent 会按登记的存储键解析站内媒体地址
+        if ((node.type !== CanvasNodeType.Image && node.type !== CanvasNodeType.Video && node.type !== CanvasNodeType.Audio) || (!node.metadata?.content && !node.metadata?.storageKey)) return;
         const url = await resolveNodeContent(node);
         saveAs(url, `canvas-${node.type}-${node.id}.${node.type === CanvasNodeType.Video ? "mp4" : node.type === CanvasNodeType.Audio ? audioExtension(node.metadata.mimeType) : imageExtension(url)}`);
     }, []);
@@ -5826,12 +5828,24 @@ function LeaferCanvasPage() {
     );
 
     const handleLeaferNodeTap = useCallback(
-        (nodeId: string) => {
+        (nodeId: string, modifiers?: { shiftKey: boolean; ctrlKey: boolean; metaKey: boolean }) => {
             const node = nodeByIdRef.current.get(nodeId);
-            const isPopulatedImage =
-                node?.type === CanvasNodeType.Image &&
-                Boolean(node.metadata?.content || node.metadata?.storageKey);
-            if (!node || !isPopulatedImage) return;
+            if (!node) return;
+            // 多选修饰键点击只调整选择，不触发节点动作
+            if (modifiers?.shiftKey || modifiers?.ctrlKey || modifiers?.metaKey) return;
+
+            // 单击生成类节点：选中并直接在节点下方展开 composer（对齐 LibTV 选中视频节点契约）；
+            // 文本/分组/脚本/导演台等工具节点保持单击仅选中，双击再进编辑器。
+            const tapOpensComposer =
+                (node.type === CanvasNodeType.Video || node.type === CanvasNodeType.Audio || node.type === CanvasNodeType.ComfyUI || node.type === CanvasNodeType.Config) && !node.metadata?.canvasTool;
+            if (tapOpensComposer && !isOverviewCanvas) {
+                resetImageTapGesture();
+                openNodeComposer(node);
+                return;
+            }
+
+            const isPopulatedImage = node.type === CanvasNodeType.Image && Boolean(node.metadata?.content || node.metadata?.storageKey);
+            if (!isPopulatedImage) return;
 
             const now = Date.now();
             const previous = imageTapGestureRef.current;
@@ -5859,7 +5873,7 @@ function LeaferCanvasPage() {
             resetImageTapGesture();
             handleViewNodeImage(node);
         },
-        [handleViewNodeImage, openNodeComposer, resetImageTapGesture],
+        [handleViewNodeImage, isOverviewCanvas, openNodeComposer, resetImageTapGesture],
     );
     const createConnectedGenerationNode = useCallback(
         (sourceNode: CanvasNodeData, type: CanvasNodeType.Video | CanvasNodeType.Audio) => {
@@ -5912,6 +5926,15 @@ function LeaferCanvasPage() {
                 case "text-to-audio":
                     createConnectedGenerationNode(node, CanvasNodeType.Audio);
                     return;
+                case "video-mode-first-frame":
+                case "video-mode-first-last":
+                case "video-mode-text": {
+                    // 空视频节点三入口：选定参考方式后打开 composer，确认后才生成
+                    const videoGenerationMode = intent === "video-mode-first-frame" ? "image-to-video" : intent === "video-mode-first-last" ? "first-last-frame" : "text-to-video";
+                    handleConfigNodeChange(node.id, { videoGenerationMode });
+                    openNodeComposer(node);
+                    return;
+                }
                 case "script-edit":
                     openNodeComposer(node);
                     return;
@@ -5953,7 +5976,7 @@ function LeaferCanvasPage() {
                 }
             }
         },
-        [createConnectedGenerationNode, createScriptNarrationNode, createScriptStoryboard, createScriptVideoNode, effectiveConfig.imageModel, effectiveConfig.model, openCompositionTimeline, openNodeComposer],
+        [createConnectedGenerationNode, createScriptNarrationNode, createScriptStoryboard, createScriptVideoNode, effectiveConfig.imageModel, effectiveConfig.model, handleConfigNodeChange, openCompositionTimeline, openNodeComposer],
     );
     const visibleConnections = useMemo(
         () =>
@@ -5981,22 +6004,9 @@ function LeaferCanvasPage() {
         }
         return result;
     }, [scriptStudioNode, nodes]);
-    const [sessionPricing, setSessionPricing] = useState<CanvasSessionPricing | null>(null);
-    useEffect(() => {
-        let cancelled = false;
-        fetch("/api/auth/session")
-            .then((res) => res.json())
-            .then((body) => {
-                const data = body?.data;
-                if (!cancelled && data?.modelPointCosts && data?.generationPointMultipliers) {
-                    setSessionPricing({ modelPointCosts: data.modelPointCosts, generationPointMultipliers: data.generationPointMultipliers });
-                }
-            })
-            .catch(() => {});
-        return () => {
-            cancelled = true;
-        };
-    }, []);
+    const sessionPricing = useSessionPricing();
+    // 画布交互模式：默认小手（对齐 LibTV/Figma），可切框选
+    const [interactionMode, setInteractionMode] = useState<"pan" | "select">("pan");
     const scriptPriceEstimates = useMemo(
         () => ({
             image: sessionPricing ? estimateCanvasTaskPoints(sessionPricing, { type: "image", model: effectiveConfig.imageModel || effectiveConfig.model, quality: effectiveConfig.quality }) : null,
@@ -6190,6 +6200,7 @@ function LeaferCanvasPage() {
                     connections={visibleConnections}
                     backgroundMode={backgroundMode}
                     alignmentGuides={alignmentGuides}
+                    interactionMode={interactionMode}
                     selectedNodeIds={selectedNodeIds}
                     selectedConnectionId={selectedConnectionId}
                     onViewportChange={handleLeaferViewportChange}
@@ -6457,6 +6468,8 @@ function LeaferCanvasPage() {
                         onTrimVideo={(node) => void openVideoTrim(node)}
                         onRetry={handleRetryNodeAction}
                         onExecuteGroup={(node) => void handleExecuteGroup(node)}
+                        onOpenStudio={openNodeComposer}
+                        onScriptAction={(node, intent) => handleNodeAction(node, intent)}
                         onToggleFreeResize={(node) => toggleNodeFreeResize(node.id)}
                         onQuickStoryboard={(node, command) => createScriptGridStoryboard(node, command)}
                         onQuickImageCommand={(node, command) => void generateImageQuickCommandNode(node, command)}
@@ -6500,6 +6513,8 @@ function LeaferCanvasPage() {
                     selectedCount={selectedNodeIds.size}
                     canUndo={historyState.canUndo}
                     canRedo={historyState.canRedo}
+                    interactionMode={interactionMode}
+                    onInteractionModeChange={setInteractionMode}
                     backgroundMode={backgroundMode}
                     snapToGrid={snapToGrid}
                     alignmentGuidesEnabled={alignmentGuidesEnabled}
@@ -6580,11 +6595,30 @@ function LeaferCanvasPage() {
                 ) : null}
 
                 {contextMenu?.type === "canvas" ? (
-                    <CanvasCreateNodeMenu
-                        position={{ x: contextMenu.x, y: contextMenu.y }}
+                    <CanvasContextMenu
+                        menu={contextMenu}
+                        canUndo={historyState.canUndo}
+                        canRedo={historyState.canRedo}
+                        canPaste={Boolean(crossCanvasClipboard.current?.nodes.length)}
                         onClose={() => setContextMenu(null)}
-                        onAction={(action) => {
-                            handleCreateMenuAction(action, contextMenu.canvasPosition);
+                        onUpload={() => {
+                            handleUploadRequest(undefined, contextMenu.canvasPosition);
+                            setContextMenu(null);
+                        }}
+                        onAddNode={() => {
+                            setCreateMenu({ x: contextMenu.x, y: contextMenu.y, canvasPosition: contextMenu.canvasPosition });
+                            setContextMenu(null);
+                        }}
+                        onUndo={() => {
+                            undoCanvas();
+                            setContextMenu(null);
+                        }}
+                        onRedo={() => {
+                            redoCanvas();
+                            setContextMenu(null);
+                        }}
+                        onPaste={() => {
+                            if (!pasteCopiedNodes()) void pasteSystemClipboard();
                             setContextMenu(null);
                         }}
                     />
@@ -6605,6 +6639,30 @@ function LeaferCanvasPage() {
                     <CanvasNodeContextMenu
                         menu={contextMenu}
                         onClose={() => setContextMenu(null)}
+                        canDownload={contextMenu.type === "node" && (() => {
+                            const target = nodesRef.current.find((item) => item.id === contextMenu.nodeId);
+                            return Boolean(target && (target.type === CanvasNodeType.Image || target.type === CanvasNodeType.Video || target.type === CanvasNodeType.Audio) && (target.metadata?.content || target.metadata?.storageKey));
+                        })()}
+                        canSaveAsset={contextMenu.type === "node" && (() => {
+                            const target = nodesRef.current.find((item) => item.id === contextMenu.nodeId);
+                            if (!target) return false;
+                            // 判定与 saveNodeAsset 守卫对齐：图片支持 storageKey-only；视频/文本需要 content；脚本工具节点不入素材库（同悬浮工具栏）
+                            if (target.type === CanvasNodeType.Image) return Boolean(target.metadata?.content || target.metadata?.storageKey);
+                            if (target.type === CanvasNodeType.Video) return Boolean(target.metadata?.content);
+                            return target.type === CanvasNodeType.Text && target.metadata?.canvasTool !== "script" && Boolean(target.metadata?.content?.trim());
+                        })()}
+                        onDownload={() => {
+                            if (contextMenu.type !== "node") return;
+                            const target = nodesRef.current.find((item) => item.id === contextMenu.nodeId);
+                            if (target) void downloadNodeImage(target);
+                            setContextMenu(null);
+                        }}
+                        onSaveAsset={() => {
+                            if (contextMenu.type !== "node") return;
+                            const target = nodesRef.current.find((item) => item.id === contextMenu.nodeId);
+                            if (target) void saveNodeAsset(target);
+                            setContextMenu(null);
+                        }}
                         onDuplicate={() => {
                             if (contextMenu.type !== "node") return;
                             duplicateNode(contextMenu.nodeId);
@@ -7807,9 +7865,12 @@ function buildAngleLabel(params: CanvasImageAngleParams) {
     return `AI 多角度：${horizontal}，${pitch}，镜头距离 ${params.cameraDistance.toFixed(1)}，${params.wideAngle ? "广角" : "标准"}镜头`;
 }
 
-function PreviewImageContent({ node, onCapturePanorama }: { node: CanvasNodeData; onCapturePanorama: (dataUrl: string) => void | Promise<void> }) {
-    if (node.metadata?.canvasTool === "panorama360") return <PreviewPanoramaContent node={node} onCapture={onCapturePanorama} />;
+function PreviewImageContent(props: { node: CanvasNodeData; onCapturePanorama: (dataUrl: string) => void | Promise<void> }) {
+    if (props.node.metadata?.canvasTool === "panorama360") return <PreviewPanoramaContent node={props.node} onCapture={props.onCapturePanorama} />;
+    return <PreviewImageContentInner node={props.node} />;
+}
 
+function PreviewImageContentInner({ node }: { node: CanvasNodeData }) {
     const storageKey = node.metadata?.storageKey;
     const content = node.metadata?.content;
     const [src, setSrc] = useState<string | null>(null);

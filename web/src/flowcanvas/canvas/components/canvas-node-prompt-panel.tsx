@@ -19,6 +19,8 @@ import type { CanvasResourceReference } from "../utils/canvas-resource-reference
 import { CanvasConfirmCard } from "./canvas-confirm-card";
 import { buildComposerConfirmation, type ComposerConfirmSource, type GenerationConfirmation } from "./canvas-node-generation";
 import { useVideoModelCapability } from '@/flowcanvas/hooks/use-video-model-capability';
+import { useSessionPricing } from "../hooks/use-session-pricing";
+import { estimateCanvasTaskPoints } from "../utils/canvas-points-estimate";
 import { videoRatiosForMode, type VideoGenerationMode, type VideoModelCapability } from '@/flowcanvas/services/api/model-capabilities';
 import { normalizeRuntimeModelOption } from '@/flowcanvas/services/runtime-config';
 import { normalizeResolutionToken, normalizeSeedanceRatio } from "@/flowcanvas/lib/seedance-video";
@@ -667,6 +669,15 @@ function VideoComposer({
     const disabled = capabilityPending || capabilityUnavailable;
     const canGenerate = Boolean(prompt.trim() || (selectedMode !== "text-to-video" && activeReferences.some((reference) => reference.kind !== "text")));
     const [expanded, setExpanded] = useState(false);
+    const pricing = useSessionPricing();
+    const estimatedPoints = pricing
+        ? estimateCanvasTaskPoints(pricing, {
+              type: "video",
+              model: node.metadata?.model || config.videoModel || config.model,
+              quality: node.metadata?.vquality || config.vquality,
+              seconds: Number(node.metadata?.seconds || config.videoSeconds) || undefined,
+          })
+        : null;
     const menuOpen = (menu: Exclude<VideoComposerMenu, null>) => openMenu === menu;
     const setMenuOpen = (menu: Exclude<VideoComposerMenu, null>, open: boolean) => onMenuChange(open ? menu : null);
     const stopCanvasEvent = {
@@ -686,6 +697,72 @@ function VideoComposer({
             }}
         >
             <GenerationRunStrip runs={generationRuns} theme={theme} onRetry={onRetry} />
+
+            {/* 顶排创作 chips（对齐 LibTV composer：参考 / 特效 / 角色库 / 运镜）；「标记」为 AI 元素选择能力，暂无对应实现，不摆空入口 */}
+            <div className="mb-2 flex items-center gap-1 overflow-x-auto overflow-y-hidden">
+                <Tooltip title="引用画布中的图片、视频、音频或文本">
+                    <button type="button" className="video-composer-tool-button" style={{ color: theme.node.text }} aria-label="参考" onClick={onMentionRequest}>
+                        <Plus className="size-4" />
+                        <span>参考</span>
+                    </button>
+                </Tooltip>
+
+                <ComposerPopover
+                    open={menuOpen("style")}
+                    onOpenChange={(open) => setMenuOpen("style", open)}
+                    content={
+                        <PresetGrid
+                            title="特效库"
+                            items={VIDEO_STYLE_PRESETS}
+                            value={selectedStyle.id}
+                            theme={theme}
+                            onChange={(id) => {
+                                onConfigChange({ videoStylePreset: id || undefined });
+                                onMenuChange(null);
+                            }}
+                        />
+                    }
+                >
+                    <ComposerToolbarButton icon={<Palette className="size-3.5" />} label={selectedStyle.id === VIDEO_STYLE_PRESETS[0].id ? "特效" : selectedStyle.shortLabel} active={menuOpen("style")} theme={theme} />
+                </ComposerPopover>
+
+                <ComposerPopover
+                    open={menuOpen("subject")}
+                    onOpenChange={(open) => setMenuOpen("subject", open)}
+                    content={
+                        <CanvasVideoSubjectLibrary
+                            value={selectedSubject?.id || ""}
+                            theme={theme}
+                            onChange={(subjectId) => {
+                                onConfigChange({ videoSubjectId: subjectId || undefined });
+                                onMenuChange(null);
+                            }}
+                        />
+                    }
+                >
+                    <ComposerToolbarButton icon={<Users className="size-3.5" />} label={selectedSubject ? selectedSubject.name : "角色库"} active={menuOpen("subject")} theme={theme} />
+                </ComposerPopover>
+
+                <ComposerPopover
+                    open={menuOpen("camera")}
+                    onOpenChange={(open) => setMenuOpen("camera", open)}
+                    content={
+                        <PresetGrid
+                            title="运镜库"
+                            items={CANVAS_VIDEO_CAMERA_PRESETS}
+                            value={selectedCamera.id}
+                            theme={theme}
+                            onChange={(id) => {
+                                onConfigChange({ videoCameraPreset: id || undefined });
+                                onMenuChange(null);
+                            }}
+                        />
+                    }
+                >
+                    <ComposerToolbarButton icon={<Camera className="size-3.5" />} label={selectedCamera.id === CANVAS_VIDEO_CAMERA_PRESETS[0].id ? "运镜" : selectedCamera.shortLabel} active={menuOpen("camera")} theme={theme} />
+                </ComposerPopover>
+            </div>
+
             <CanvasReferenceStrip
                 references={activeReferences}
                 variant="media"
@@ -778,38 +855,6 @@ function VideoComposer({
                     </ComposerPopover>
 
                     <ComposerPopover
-                        open={menuOpen("style")}
-                        onOpenChange={(open) => setMenuOpen("style", open)}
-                        content={
-                            <PresetGrid
-                                title="风格库"
-                                items={VIDEO_STYLE_PRESETS}
-                                value={selectedStyle.id}
-                                theme={theme}
-                                onChange={(id) => {
-                                    onConfigChange({ videoStylePreset: id || undefined });
-                                    onMenuChange(null);
-                                }}
-                            />
-                        }
-                    >
-                        <ComposerToolbarButton icon={<Palette className="size-3.5" />} label={selectedStyle.shortLabel} active={menuOpen("style")} theme={theme} />
-                    </ComposerPopover>
-
-                    <Tooltip title="引用画布中的图片、视频、音频或文本">
-                        <button
-                            type="button"
-                            className="video-composer-tool-button"
-                            style={{ color: theme.node.text }}
-                            aria-label="引用素材"
-                            onClick={onMentionRequest}
-                        >
-                            <AtSign className="size-4" />
-                            <span>引用</span>
-                        </button>
-                    </Tooltip>
-
-                    <ComposerPopover
                         open={menuOpen("mode")}
                         onOpenChange={(open) => setMenuOpen("mode", open)}
                         content={
@@ -840,42 +885,6 @@ function VideoComposer({
                     </ComposerPopover>
 
                     <ComposerPopover
-                        open={menuOpen("camera")}
-                        onOpenChange={(open) => setMenuOpen("camera", open)}
-                        content={
-                            <PresetGrid
-                                title="运镜库"
-                                items={CANVAS_VIDEO_CAMERA_PRESETS}
-                                value={selectedCamera.id}
-                                theme={theme}
-                                onChange={(id) => {
-                                    onConfigChange({ videoCameraPreset: id || undefined });
-                                    onMenuChange(null);
-                                }}
-                            />
-                        }
-                    >
-                        <ComposerToolbarButton icon={<Camera className="size-3.5" />} label={selectedCamera.shortLabel} active={menuOpen("camera")} theme={theme} />
-                    </ComposerPopover>
-
-                    <ComposerPopover
-                        open={menuOpen("subject")}
-                        onOpenChange={(open) => setMenuOpen("subject", open)}
-                        content={
-                            <CanvasVideoSubjectLibrary
-                                value={selectedSubject?.id || ""}
-                                theme={theme}
-                                onChange={(subjectId) => {
-                                    onConfigChange({ videoSubjectId: subjectId || undefined });
-                                    onMenuChange(null);
-                                }}
-                            />
-                        }
-                    >
-                        <ComposerToolbarButton icon={<Users className="size-3.5" />} label={selectedSubject ? selectedSubject.name : "主体"} active={menuOpen("subject")} theme={theme} />
-                    </ComposerPopover>
-
-                    <ComposerPopover
                         open={menuOpen("advanced")}
                         onOpenChange={(open) => setMenuOpen("advanced", open)}
                         content={
@@ -900,6 +909,11 @@ function VideoComposer({
                     </ComposerPopover>
                 </div>
 
+                {estimatedPoints != null && !isRunning ? (
+                    <span className="mr-1 shrink-0 whitespace-nowrap text-[11px]" style={{ color: theme.node.muted }} title="按当前模型与参数估算，实际以服务端扣费为准">
+                        ⚡约{estimatedPoints}积分
+                    </span>
+                ) : null}
                 <Tooltip title={isRunning ? "停止生成" : "生成视频"}>
                     <Button
                         type="primary"

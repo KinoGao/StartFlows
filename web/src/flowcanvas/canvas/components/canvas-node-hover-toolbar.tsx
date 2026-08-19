@@ -2,13 +2,13 @@
 
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { App, Modal, Segmented, Tooltip } from "antd";
-import { Download, Ellipsis, FolderPlus, Info, LayoutGrid, MessageSquare, Minus, Music2, Pencil, Play, Plus, RefreshCw, ScanSearch, Scissors, Settings2, Sparkles, Trash2, Upload, Video, Workflow } from "lucide-react";
+import { Clapperboard, Download, Ellipsis, FolderPlus, Info, LayoutGrid, MessageSquare, Minus, Music2, Pencil, Play, Plus, RefreshCw, ScanSearch, Scissors, Settings2, Sparkles, Trash2, Upload, Video, Workflow } from "lucide-react";
 
 import { canvasThemes } from "@/flowcanvas/lib/canvas-theme";
 import { formatBytes, getDataUrlByteSize } from "@/flowcanvas/lib/image-utils";
 import { useCopyText } from "@/flowcanvas/hooks/use-copy-text";
 import { useThemeStore } from "@/flowcanvas/stores/use-theme-store";
-import { CanvasNodeType, type CanvasNodeData, type ViewportTransform } from "../types";
+import { CanvasNodeType, type CanvasNodeActionIntent, type CanvasNodeData, type ViewportTransform } from "../types";
 import { CANVAS_SLASH_COMMANDS, type CanvasSlashCommand } from "../utils/canvas-workflow-template";
 import { CANVAS_IMAGE_QUICK_COMMANDS, type CanvasImageQuickCommand } from "../utils/canvas-image-quick-commands";
 import { ImageToolSettingsModal, type ImageToolbarSettingsTool } from "./canvas-image-toolbar-settings-modal";
@@ -43,6 +43,8 @@ type CanvasNodeHoverToolbarProps = {
     onTrimVideo: (node: CanvasNodeData) => void;
     onRetry: (node: CanvasNodeData) => void;
     onExecuteGroup: (node: CanvasNodeData) => void;
+    onOpenStudio: (node: CanvasNodeData) => void;
+    onScriptAction: (node: CanvasNodeData, intent: CanvasNodeActionIntent) => void;
     onToggleFreeResize: (node: CanvasNodeData) => void;
     onQuickStoryboard: (node: CanvasNodeData, command: CanvasSlashCommand) => void;
     onQuickImageCommand: (node: CanvasNodeData, command: CanvasImageQuickCommand) => void;
@@ -88,6 +90,8 @@ export function CanvasNodeHoverToolbar({
     onTrimVideo,
     onRetry,
     onExecuteGroup,
+    onOpenStudio,
+    onScriptAction,
     onToggleFreeResize,
     onQuickStoryboard,
     onQuickImageCommand,
@@ -136,6 +140,8 @@ export function CanvasNodeHoverToolbar({
     const isText = currentNode.type === CanvasNodeType.Text;
     const isConfig = currentNode.type === CanvasNodeType.Config;
     const isComfyUi = currentNode.type === CanvasNodeType.ComfyUI;
+    const isScriptTool = currentNode.metadata?.canvasTool === "script";
+    const isDirectorTool = currentNode.metadata?.canvasTool === "director";
     const canOpenDialog = isText || hasImage || isVideo;
     const canRetry = currentNode.metadata?.status === "error";
     const quickImageToolIdSet = new Set(quickImageToolIds);
@@ -162,23 +168,33 @@ export function CanvasNodeHoverToolbar({
     ];
     const nodeToolbarTools: ToolbarTool[] = [
         ...(canRetry ? [{ id: "retry", title: "重新生成", label: "重试", icon: <RefreshCw className="size-4" />, onClick: () => onRetry(node) }] : []),
-        ...(hasImage || hasVideo || isText ? [{ id: "saveAsset", title: "加入我的素材", label: "存素材", icon: <FolderPlus className="size-4" />, onClick: () => onSaveAsset(node) }] : []),
+        // 视频节点：对齐 LibTV 已生成视频动作条，剪辑/逐帧拉片前置（LibTV 的片段重拍/智能续写/去字幕/音频分离暂无对应能力，不摆空入口）
+        ...(hasVideo ? [{ id: "trimVideo", title: "剪辑视频（设置入点/出点导出片段）", label: "剪辑", icon: <Scissors className="size-4" />, onClick: () => onTrimVideo(currentNode) }] : []),
+        ...(hasVideo ? [{ id: "analyzeVideo", title: "逐帧拉片：解析视频为分镜表（抽帧 + 识图模型）", label: "拉片", icon: <ScanSearch className="size-4" />, onClick: () => onAnalyzeVideo(currentNode) }] : []),
+        // 脚本/导演台节点：对齐 LibTV 脚本浮动工具栏（打开工作台/批量生成分镜/批量生视频）
+        ...(isScriptTool
+            ? [
+                  { id: "openStudio", title: "打开脚本工作台", label: "工作台", icon: <Clapperboard className="size-4" />, onClick: () => onOpenStudio(currentNode) },
+                  { id: "scriptStoryboard", title: "批量生成分镜", label: "生成分镜", icon: <LayoutGrid className="size-4" />, onClick: () => onScriptAction(currentNode, "script-to-storyboard") },
+                  { id: "scriptVideo", title: "批量生视频", label: "生成视频", icon: <Video className="size-4" />, onClick: () => onScriptAction(currentNode, "script-to-video") },
+              ]
+            : []),
+        ...(isDirectorTool ? [{ id: "openStudio", title: "打开导演台", label: "导演台", icon: <Clapperboard className="size-4" />, onClick: () => onOpenStudio(currentNode) }] : []),
+        ...(hasImage || hasVideo || (isText && !isScriptTool) ? [{ id: "saveAsset", title: "加入我的素材", label: "存素材", icon: <FolderPlus className="size-4" />, onClick: () => onSaveAsset(node) }] : []),
         ...(hasImage || hasVideo || hasAudio ? [{ id: "download", title: hasAudio ? "下载音频" : hasVideo ? "下载视频" : "下载图片", label: "下载", icon: <Download className="size-4" />, onClick: () => onDownload(node) }] : []),
-        ...(canOpenDialog ? [{ id: "edit", title: "编辑", label: "编辑", icon: <MessageSquare className="size-4" />, onClick: () => onToggleDialog(node) }] : []),
-        ...(isText ? [{ id: "editText", title: "编辑文本", label: "编辑文字", icon: <Pencil className="size-4" />, onClick: () => onEditText(node) }] : []),
-        ...(isText || currentNode.metadata?.canvasTool === "script" ? [{ id: "quickStoryboard", title: "快捷分镜", label: "快捷分镜", icon: <LayoutGrid className="size-4" />, onClick: () => { onKeep(currentNode.id); setStoryboardMenuOpen((value) => !value); } }] : []),
+        ...(canOpenDialog && !isScriptTool ? [{ id: "edit", title: "编辑", label: "编辑", icon: <MessageSquare className="size-4" />, onClick: () => onToggleDialog(node) }] : []),
+        ...(isText && !isScriptTool ? [{ id: "editText", title: "编辑文本", label: "编辑文字", icon: <Pencil className="size-4" />, onClick: () => onEditText(node) }] : []),
+        ...(isText && !isScriptTool ? [{ id: "quickStoryboard", title: "快捷分镜", label: "快捷分镜", icon: <LayoutGrid className="size-4" />, onClick: () => { onKeep(currentNode.id); setStoryboardMenuOpen((value) => !value); } }] : []),
         ...(isConfig ? [{ id: "config", title: "打开生成配置", label: "配置", icon: <Settings2 className="size-4" />, onClick: () => onToggleDialog(node) }] : []),
-        ...(isComfyUi ? [{ id: "comfyui", title: "打开 ComfyUI", label: "ComfyUI", icon: <Workflow className="size-4" />, onClick: () => onToggleDialog(node) }] : []),
-        ...(isText ? [{ id: "decreaseFont", title: "减小字号", label: "缩小", icon: <Minus className="size-4" />, onClick: () => onDecreaseFont(node) }] : []),
-        ...(isText ? [{ id: "increaseFont", title: "增大字号", label: "放大", icon: <Plus className="size-4" />, onClick: () => onIncreaseFont(node) }] : []),
+        ...(isComfyUi && !isDirectorTool ? [{ id: "comfyui", title: "打开 ComfyUI", label: "ComfyUI", icon: <Workflow className="size-4" />, onClick: () => onToggleDialog(node) }] : []),
+        ...(isText && !isScriptTool ? [{ id: "decreaseFont", title: "减小字号", label: "缩小", icon: <Minus className="size-4" />, onClick: () => onDecreaseFont(node) }] : []),
+        ...(isText && !isScriptTool ? [{ id: "increaseFont", title: "增大字号", label: "放大", icon: <Plus className="size-4" />, onClick: () => onIncreaseFont(node) }] : []),
         ...(isImage && !hasImage ? [{ id: "uploadImage", title: "上传图片", label: "上传图片", icon: <Upload className="size-4" />, onClick: () => onUpload(node) }] : []),
         ...(isVideo ? [{ id: "uploadVideo", title: hasVideo ? "替换视频" : "上传视频", label: hasVideo ? "替换视频" : "上传视频", icon: <Video className="size-4" />, onClick: () => onUpload(node) }] : []),
-        ...(hasVideo ? [{ id: "analyzeVideo", title: "解析视频为分镜表（抽帧 + 识图模型）", label: "解析", icon: <ScanSearch className="size-4" />, onClick: () => onAnalyzeVideo(currentNode) }] : []),
-        ...(hasVideo ? [{ id: "trimVideo", title: "剪辑视频（设置入点/出点导出片段）", label: "剪辑", icon: <Scissors className="size-4" />, onClick: () => onTrimVideo(currentNode) }] : []),
         ...(isAudio ? [{ id: "uploadAudio", title: hasAudio ? "替换音频" : "上传音频", label: hasAudio ? "替换音频" : "上传音频", icon: <Music2 className="size-4" />, onClick: () => onUpload(node) }] : []),
         ...(hasImage ? imageTools.map((tool) => ({ id: tool.id, title: tool.title, label: tool.label, icon: tool.icon, active: tool.active, onClick: tool.onClick })) : []),
     ];
-    const toolbarTools = hasImage ? [...baseToolbarTools, ...nodeToolbarTools].filter((tool) => quickImageToolIdSet.has(tool.id as ImageQuickToolId)) : [...baseToolbarTools, ...nodeToolbarTools];
+    const toolbarTools = hasImage ? [...nodeToolbarTools, ...baseToolbarTools].filter((tool) => quickImageToolIdSet.has(tool.id as ImageQuickToolId)) : [...nodeToolbarTools, ...baseToolbarTools];
     const selectableImageToolbarTools = [...baseToolbarTools, ...nodeToolbarTools].filter((tool) => tool.id !== "retry") as ImageToolbarSettingsTool[];
 
     const closeImageToolSettings = () => {

@@ -1186,7 +1186,7 @@ type NodeStarterKind = "text" | "image" | "video" | "comfyui" | "audio";
 const nodeStarterVisuals: Record<NodeStarterKind, { label: string; description: string; icon: React.ElementType }> = {
     text: { label: "文本创作", description: "记录灵感，或直接衔接下游生成。", icon: FileText },
     image: { label: "图片素材", description: "上传参考图，作为后续创作的视觉基础。", icon: ImageIcon },
-    video: { label: "视频素材", description: "导入视频后，可截帧、延长或作为参考。", icon: Video },
+    video: { label: "视频生成", description: "选择生成方式，或连接参考素材后创作。", icon: Video },
     comfyui: { label: "ComfyUI 工作流", description: "选择工作流并连接上游素材后运行。", icon: Workflow },
     audio: { label: "音频素材", description: "导入声音素材，或连接到音频生成流程。", icon: Music2 },
 };
@@ -1409,7 +1409,7 @@ function waitForDecodedVideoFrame(video: HTMLVideoElement) {
     });
 }
 
-function VideoNodeContent({ node, theme, isSelected, onCaptureVideoFrame, onUpload, onOpenComposer }: NodeContentRendererProps) {
+function VideoNodeContent({ node, theme, isSelected, onCaptureVideoFrame, onUpload, onOpenComposer, onNodeAction }: NodeContentRendererProps) {
     const src = useLazyMediaUrl(node.metadata?.storageKey, node.metadata?.content, "media");
     const videoRef = useRef<HTMLVideoElement>(null);
     const containerRef = useRef<HTMLDivElement>(null);
@@ -1507,7 +1507,18 @@ function VideoNodeContent({ node, theme, isSelected, onCaptureVideoFrame, onUplo
         [capturing, duration, node, onCaptureVideoFrame],
     );
 
-    if (!src) return <MediaNodePlaceholder kind="video" theme={theme} />;
+    if (!src)
+        return (
+            <NodeStarterPanel
+                kind="video"
+                theme={theme}
+                actions={[
+                    { label: "首帧图生视频", onClick: () => onNodeAction?.("video-mode-first-frame") },
+                    { label: "首尾帧生视频", onClick: () => onNodeAction?.("video-mode-first-last") },
+                    { label: "文生视频", onClick: () => onNodeAction?.("video-mode-text") },
+                ]}
+            />
+        );
     if (failedSrc === src) return <EmptyState icon={<Video className="size-7 opacity-35" />} label="视频加载失败" theme={theme} />;
 
     return (
