@@ -10,6 +10,6 @@ describe("centerViewportOnRect", () => {
     });
 
     it("限制定位时的缩放范围", () => {
-        expect(centerViewportOnRect({ x: 0, y: 0, width: 100, height: 100 }, { width: 800, height: 600 }, 9).k).toBe(3);
+        expect(centerViewportOnRect({ x: 0, y: 0, width: 100, height: 100 }, { width: 800, height: 600 }, 9).k).toBe(8);
     });
 });

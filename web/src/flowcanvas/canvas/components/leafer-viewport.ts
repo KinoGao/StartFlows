@@ -5,7 +5,8 @@ import type { ViewportTransform } from "../types";
 export type LeaferViewport = ViewportTransform;
 
 export const MIN_CANVAS_ZOOM = 0.1;
-export const MAX_CANVAS_ZOOM = 3.0;
+// LibTV 实测缩放范围 10%–800%
+export const MAX_CANVAS_ZOOM = 8.0;
 const CANVAS_ZOOM_STEP_FACTOR = 1.25;
 
 export function clampCanvasZoom(scale: number): number {

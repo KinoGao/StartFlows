@@ -142,6 +142,7 @@ export function CanvasNodeHoverToolbar({
     const isComfyUi = currentNode.type === CanvasNodeType.ComfyUI;
     const isScriptTool = currentNode.metadata?.canvasTool === "script";
     const isDirectorTool = currentNode.metadata?.canvasTool === "director";
+    const isLapianTool = currentNode.metadata?.canvasTool === "lapian";
     const canOpenDialog = isText || hasImage || isVideo;
     const canRetry = currentNode.metadata?.status === "error";
     const quickImageToolIdSet = new Set(quickImageToolIds);
@@ -169,8 +170,9 @@ export function CanvasNodeHoverToolbar({
     const nodeToolbarTools: ToolbarTool[] = [
         ...(canRetry ? [{ id: "retry", title: "重新生成", label: "重试", icon: <RefreshCw className="size-4" />, onClick: () => onRetry(node) }] : []),
         // 视频节点：对齐 LibTV 已生成视频动作条，剪辑/逐帧拉片前置（LibTV 的片段重拍/智能续写/去字幕/音频分离暂无对应能力，不摆空入口）
-        ...(hasVideo ? [{ id: "trimVideo", title: "剪辑视频（设置入点/出点导出片段）", label: "剪辑", icon: <Scissors className="size-4" />, onClick: () => onTrimVideo(currentNode) }] : []),
-        ...(hasVideo ? [{ id: "analyzeVideo", title: "逐帧拉片：解析视频为分镜表（抽帧 + 识图模型）", label: "拉片", icon: <ScanSearch className="size-4" />, onClick: () => onAnalyzeVideo(currentNode) }] : []),
+        // 拉片节点自身不显示剪辑/拉片/编辑对话，只保留上传替换与素材/下载
+        ...(hasVideo && !isLapianTool ? [{ id: "trimVideo", title: "剪辑视频（设置入点/出点导出片段）", label: "剪辑", icon: <Scissors className="size-4" />, onClick: () => onTrimVideo(currentNode) }] : []),
+        ...(hasVideo && !isLapianTool ? [{ id: "analyzeVideo", title: "逐帧拉片：解析视频为分镜表（抽帧 + 识图模型）", label: "拉片", icon: <ScanSearch className="size-4" />, onClick: () => onAnalyzeVideo(currentNode) }] : []),
         // 脚本/导演台节点：对齐 LibTV 脚本浮动工具栏（打开工作台/批量生成分镜/批量生视频）
         ...(isScriptTool
             ? [
@@ -182,7 +184,7 @@ export function CanvasNodeHoverToolbar({
         ...(isDirectorTool ? [{ id: "openStudio", title: "打开导演台", label: "导演台", icon: <Clapperboard className="size-4" />, onClick: () => onOpenStudio(currentNode) }] : []),
         ...(hasImage || hasVideo || (isText && !isScriptTool) ? [{ id: "saveAsset", title: "加入我的素材", label: "存素材", icon: <FolderPlus className="size-4" />, onClick: () => onSaveAsset(node) }] : []),
         ...(hasImage || hasVideo || hasAudio ? [{ id: "download", title: hasAudio ? "下载音频" : hasVideo ? "下载视频" : "下载图片", label: "下载", icon: <Download className="size-4" />, onClick: () => onDownload(node) }] : []),
-        ...(canOpenDialog && !isScriptTool ? [{ id: "edit", title: "编辑", label: "编辑", icon: <MessageSquare className="size-4" />, onClick: () => onToggleDialog(node) }] : []),
+        ...(canOpenDialog && !isScriptTool && !isLapianTool ? [{ id: "edit", title: "编辑", label: "编辑", icon: <MessageSquare className="size-4" />, onClick: () => onToggleDialog(node) }] : []),
         ...(isText && !isScriptTool ? [{ id: "editText", title: "编辑文本", label: "编辑文字", icon: <Pencil className="size-4" />, onClick: () => onEditText(node) }] : []),
         ...(isText && !isScriptTool ? [{ id: "quickStoryboard", title: "快捷分镜", label: "快捷分镜", icon: <LayoutGrid className="size-4" />, onClick: () => { onKeep(currentNode.id); setStoryboardMenuOpen((value) => !value); } }] : []),
         ...(isConfig ? [{ id: "config", title: "打开生成配置", label: "配置", icon: <Settings2 className="size-4" />, onClick: () => onToggleDialog(node) }] : []),

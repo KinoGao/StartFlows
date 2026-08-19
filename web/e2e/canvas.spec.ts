@@ -83,7 +83,7 @@ test("canvas keeps editing, selection, linking and persistence fluid", async ({ 
         await expect(promptDialog).toBeHidden();
         await expect(nodePrompt).toHaveValue("弹窗中的长提示词会实时回写原输入框");
 
-        await page.getByRole("button", { name: "切换到框选模式" }).click();
+        await page.getByRole("button", { name: "选择模式 · Shift+拖框选节点" }).click();
         await expect(surface).toHaveAttribute("data-canvas-interaction-mode", "select");
         await dragSelectionBox(page, page.locator("[data-node-id]"));
         await expectSelectedNodeCount(page, 3);
@@ -161,7 +161,7 @@ test("canvas keeps editing, selection, linking and persistence fluid", async ({ 
         await imageNode.click({ position: { x: 36, y: 36 } });
         await page.keyboard.up("Control");
         await expectSelectedNodeCount(page, 2);
-        await page.getByRole("button", { name: "切换到小手模式" }).click();
+        await page.getByRole("button", { name: "小手模式 · 拖动画布" }).click();
         await expect(surface).toHaveAttribute("data-canvas-interaction-mode", "pan");
         await expectSelectedNodeCount(page, 2);
         const copyPatchCount = patchRequests.length;
@@ -985,10 +985,13 @@ async function dragSelectionBox(page: Page, nodes: Locator) {
         right: -Infinity,
         bottom: -Infinity,
     });
+    // LibTV 契约：框选需要按住 Shift（或 Ctrl/Cmd）拖动
     await page.mouse.move(bounds.left - 16, bounds.top - 16);
+    await page.keyboard.down("Shift");
     await page.mouse.down();
     await page.mouse.move(bounds.right + 16, bounds.bottom + 16, { steps: 10 });
     await page.mouse.up();
+    await page.keyboard.up("Shift");
 }
 
 async function expectSelectedNodeCount(page: Page, count: number) {

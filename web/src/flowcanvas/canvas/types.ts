@@ -52,12 +52,13 @@ export type CanvasNodeActionIntent =
     | "script-to-storyboard"
     | "script-to-video"
     | "script-to-audio"
-    | "composition-timeline";
+    | "composition-timeline"
+    | "lapian-start";
 export type CanvasBaseMetadata = {
     typeSequence?: number;
     content?: string;
     composerContent?: string;
-    canvasTool?: "script" | "videoComposition" | "director" | "panorama360";
+    canvasTool?: "script" | "videoComposition" | "director" | "panorama360" | "lapian";
     prompt?: string;
     requestPrompt?: string;
     status?: CanvasNodeStatus;
@@ -173,6 +174,8 @@ export type CanvasGenerationMetadata = {
     videoCameraPreset?: string;
     /** 视频主体库选中的主体 id（账号配置 videoSubjects） */
     videoSubjectId?: string;
+    /** 逐帧拉片节点选中的拆解维度（默认 storyboard） */
+    lapianDimensions?: CanvasLapianDimension[];
     imageStylePreset?: string;
     imageCameraBody?: string;
     imageCameraLens?: string;
@@ -210,6 +213,9 @@ export type CanvasGroupMetadata = {
     groupChildIds?: string[];
     groupVariant?: "normal" | "storyboard";
 };
+
+/** 逐帧拉片拆解维度（对齐 LibTV 拉片节点的 分镜/动态/音乐 三个 chip，可多选） */
+export type CanvasLapianDimension = "storyboard" | "motion" | "music";
 
 export type CanvasMediaMetadata = {
     naturalWidth?: number;

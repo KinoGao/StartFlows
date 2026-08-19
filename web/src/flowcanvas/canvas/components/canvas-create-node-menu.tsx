@@ -11,6 +11,7 @@ import {
     Layers3,
     Music2,
     PackagePlus,
+    ScanSearch,
     Type,
     Upload,
     Video,
@@ -28,6 +29,7 @@ export type CanvasCreateMenuAction =
     | "videoComposition"
     | "director"
     | "panorama360"
+    | "lapian"
     | "audio"
     | "script"
     | "materialLibrary"
@@ -119,20 +121,19 @@ export function CanvasCreateNodeMenu({
                 <div className="text-xs font-medium opacity-70">添加节点</div>
                 <div className="text-[10px] opacity-35">画布工具</div>
             </div>
-            <div className="px-2 pb-1 pt-1 text-xs font-medium opacity-60">媒体节点</div>
+            {/* 顺序对齐 LibTV 添加菜单：文本/图片/视频/智能剪辑/导演台/逐帧拉片/音频/脚本/素材库，外加 ComfyUI 与 360场景 */}
             <CreateMenuOption theme={theme} icon={<Type className="size-4" />} label="文本" description="设置 · 台词 · 剧情说明" onClick={() => onAction("text")} />
             <CreateMenuOption theme={theme} icon={<ImageIcon className="size-4" />} label="图片" description="宣传图 · 海报 · 封面" onClick={() => onAction("image")} />
             <CreateMenuOption theme={theme} icon={<Video className="size-4" />} label="视频" description="宣传视频 · 动画 · 电影" onClick={() => onAction("video")} />
-            <CreateMenuOption theme={theme} icon={<Music2 className="size-4" />} label="音频" description="音乐 · 配音 · 音效" onClick={() => onAction("audio")} />
-            <div className="px-2 pb-1 pt-2 text-xs font-medium opacity-60">创作能力</div>
-            <CreateMenuOption theme={theme} icon={<FileText className="size-4" />} label="脚本" description="脚本、分镜与逐 beat 生成" onClick={() => onAction("script")} />
-            <CreateMenuOption theme={theme} icon={<Workflow className="size-4" />} label="ComfyUI" description="连接自定义工作流" onClick={() => onAction("comfyui")} />
-            <CreateMenuOption theme={theme} icon={<Clapperboard className="size-4" />} label="剪辑时间线" description="时间轴串联多段素材" tag="Beta" onClick={() => onAction("videoComposition")} />
+            <CreateMenuOption theme={theme} icon={<Clapperboard className="size-4" />} label="智能剪辑" description="时间轴串联多段素材" tag="Beta" onClick={() => onAction("videoComposition")} />
             <CreateMenuOption theme={theme} icon={<Layers3 className="size-4" />} label="导演台" description="在 3D 空间搭建场景" tag="NEW" onClick={() => onAction("director")} />
+            <CreateMenuOption theme={theme} icon={<ScanSearch className="size-4" />} label="逐帧拉片" description="拆解视频的分镜 / 运镜 / 配乐" tag="NEW" onClick={() => onAction("lapian")} />
+            <CreateMenuOption theme={theme} icon={<Music2 className="size-4" />} label="音频" description="音乐 · 配音 · 音效" onClick={() => onAction("audio")} />
+            <CreateMenuOption theme={theme} icon={<FileText className="size-4" />} label="脚本" description="脚本、分镜与逐 beat 生成" tag="NEW" onClick={() => onAction("script")} />
+            <CreateMenuOption theme={theme} icon={<Workflow className="size-4" />} label="ComfyUI" description="连接自定义工作流" onClick={() => onAction("comfyui")} />
             <CreateMenuOption theme={theme} icon={<CircleDot className="size-4" />} label="360场景" description="生成沉浸式全景素材" tag="NEW" onClick={() => onAction("panorama360")} />
-            <CreateMenuOption theme={theme} icon={<Layers3 className="size-4" />} label="3D 世界" description="空间创作能力即将开放" tag="Beta" disabled />
-            <div className="px-2 pb-1 pt-2 text-xs font-medium opacity-60">添加资源</div>
             <CreateMenuOption theme={theme} icon={<PackagePlus className="size-4" />} label="素材库" description="复用账号素材与风格" tag="NEW" onClick={() => onAction("materialLibrary")} />
+            <div className="px-2 pb-1 pt-2 text-xs font-medium opacity-60">添加资源</div>
             <CreateMenuOption theme={theme} icon={<Upload className="size-4" />} label="上传" description="图片、视频、音频与文件" onClick={() => onAction("upload")} />
             <CreateMenuOption theme={theme} icon={<Clock3 className="size-4" />} label="从生成历史选择" description="回到已有生成结果" onClick={() => onAction("generationHistory")} />
         </div>

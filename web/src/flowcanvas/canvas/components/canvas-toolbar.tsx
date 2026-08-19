@@ -9,6 +9,7 @@ import {
     Eraser,
     FolderOpen,
     Grid2x2,
+    History,
     Info,
     Keyboard,
     Layers3,
@@ -25,6 +26,7 @@ import {
     Trash2,
     Undo2,
     Upload,
+    Users,
     WandSparkles,
     Workflow,
     X,
@@ -34,6 +36,8 @@ import { canvasThemes, type CanvasBackgroundMode, type CanvasColorTheme, type Ca
 import { useThemeStore } from "@/flowcanvas/stores/use-theme-store";
 import { AnimatedThemeToggler } from "@/flowcanvas/components/ui/animated-theme-toggler";
 import { CanvasCreateNodeMenu, type CanvasCreateMenuAction } from "./canvas-create-node-menu";
+import { CanvasHistoryPanel, type CanvasHistoryPanelEntry } from "./canvas-history-panel";
+import { CanvasVideoSubjectLibrary } from "./canvas-video-subject-library";
 
 export function CanvasToolbar({
     selectedCount,
@@ -62,6 +66,8 @@ export function CanvasToolbar({
     onOpenMyAssets,
     onOpenMaterialLibrary,
     onOpenWorkflowToolbox,
+    historyEntries,
+    onHistoryJump,
     assetPanelOpen = false,
 }: {
     selectedCount: number;
@@ -91,6 +97,8 @@ export function CanvasToolbar({
     onOpenMyAssets: () => void;
     onOpenMaterialLibrary: (tab?: "styles" | "effects" | "assets") => void;
     onOpenWorkflowToolbox: () => void;
+    historyEntries: CanvasHistoryPanelEntry[];
+    onHistoryJump: (index: number) => void;
     assetPanelOpen?: boolean;
 }) {
     const wrapRef = useRef<HTMLDivElement>(null);
@@ -104,6 +112,8 @@ export function CanvasToolbar({
     const [addMenuAnchor, setAddMenuAnchor] = useState<DockPosition>({ x: 0, y: 0 });
     const [appearanceOpen, setAppearanceOpen] = useState(false);
     const [materialOpen, setMaterialOpen] = useState(false);
+    const [subjectOpen, setSubjectOpen] = useState(false);
+    const [historyOpen, setHistoryOpen] = useState(false);
     const [shortcutsOpen, setShortcutsOpen] = useState(false);
     const [panelLeft, setPanelLeft] = useState(16);
     const dockStyle = { background: theme.ui.material, borderColor: theme.ui.hairline, color: theme.toolbar.item, boxShadow: theme.ui.shadow };
@@ -115,10 +125,12 @@ export function CanvasToolbar({
         setAddMenuOpen(false);
         setAppearanceOpen(false);
         setMaterialOpen(false);
+        setSubjectOpen(false);
+        setHistoryOpen(false);
         setShortcutsOpen(false);
     };
 
-    const openPanelAt = (event: ReactMouseEvent<HTMLElement>, panel: "add" | "appearance" | "material") => {
+    const openPanelAt = (event: ReactMouseEvent<HTMLElement>, panel: "add" | "appearance" | "material" | "subject" | "history") => {
         setShortcutsOpen(false);
         const root = wrapRef.current?.parentElement?.getBoundingClientRect();
         const box = event.currentTarget.getBoundingClientRect();
@@ -126,7 +138,7 @@ export function CanvasToolbar({
             // 底部横排 dock：添加菜单在按钮上方展开
             setAddMenuAnchor({ x: box.left + box.width / 2 - 136, y: box.top });
         } else {
-            const panelWidth = panel === "material" ? 196 : 248;
+            const panelWidth = panel === "material" ? 196 : panel === "subject" ? 446 : panel === "history" ? 264 : 248;
             const centerX = box.left - (root?.left ?? 0) + box.width / 2;
             const maxLeft = Math.max(8, (root?.width ?? window.innerWidth) - panelWidth - 8);
             setPanelLeft(Math.min(Math.max(8, centerX - panelWidth / 2), maxLeft));
@@ -134,6 +146,8 @@ export function CanvasToolbar({
         setAddMenuOpen(panel === "add" ? (value) => !value : false);
         setAppearanceOpen(panel === "appearance" ? (value) => !value : false);
         setMaterialOpen(panel === "material" ? (value) => !value : false);
+        setSubjectOpen(panel === "subject" ? (value) => !value : false);
+        setHistoryOpen(panel === "history" ? (value) => !value : false);
     };
 
     useEffect(() => {
@@ -147,18 +161,24 @@ export function CanvasToolbar({
                 <ToolbarButton id="tool-add" label="添加节点" active={addMenuOpen} activeStyle={activeStyle} hovered={hovered} hoverStyle={hoverStyle} wrapRef={wrapRef} onTipPosition={setTipPosition} onHover={setHovered} onClick={(event) => openPanelAt(event, "add")}>
                     <Plus className="size-5" />
                 </ToolbarButton>
-                <ToolbarButton id="tool-select-mode" label="框选模式 · 拖框选择节点" active={interactionMode === "select"} activeStyle={activeStyle} hovered={hovered} hoverStyle={hoverStyle} wrapRef={wrapRef} onTipPosition={setTipPosition} onHover={setHovered} onClick={() => onInteractionModeChange("select")}>
+                <ToolbarButton id="tool-select-mode" label="选择模式 · Shift+拖框选节点" active={interactionMode === "select"} activeStyle={activeStyle} hovered={hovered} hoverStyle={hoverStyle} wrapRef={wrapRef} onTipPosition={setTipPosition} onHover={setHovered} onClick={() => onInteractionModeChange("select")}>
                     <MousePointer2 className="size-4.5" />
                 </ToolbarButton>
                 <ToolbarButton id="tool-pan-mode" label="小手模式 · 拖动画布" active={interactionMode === "pan"} activeStyle={activeStyle} hovered={hovered} hoverStyle={hoverStyle} wrapRef={wrapRef} onTipPosition={setTipPosition} onHover={setHovered} onClick={() => onInteractionModeChange("pan")}>
                     <Hand className="size-4.5" />
                 </ToolbarButton>
                 <Divider theme={theme} />
+                <ToolbarButton id="tool-workflow-toolbox" label="工具箱" hovered={hovered} hoverStyle={hoverStyle} wrapRef={wrapRef} onTipPosition={setTipPosition} onHover={setHovered} onClick={() => { closeDockPopovers(); onOpenWorkflowToolbox(); }}>
+                    <Workflow className="size-4.5" />
+                </ToolbarButton>
                 <ToolbarButton id="tool-material" label="素材库" active={materialOpen} activeStyle={activeStyle} hovered={hovered} hoverStyle={hoverStyle} wrapRef={wrapRef} onTipPosition={setTipPosition} onHover={setHovered} onClick={(event) => openPanelAt(event, "material")}>
                     <Boxes className="size-4.5" />
                 </ToolbarButton>
-                <ToolbarButton id="tool-workflow-toolbox" label="工具箱" hovered={hovered} hoverStyle={hoverStyle} wrapRef={wrapRef} onTipPosition={setTipPosition} onHover={setHovered} onClick={() => { closeDockPopovers(); onOpenWorkflowToolbox(); }}>
-                    <Workflow className="size-4.5" />
+                <ToolbarButton id="tool-subject" label="角色库" active={subjectOpen} activeStyle={activeStyle} hovered={hovered} hoverStyle={hoverStyle} wrapRef={wrapRef} onTipPosition={setTipPosition} onHover={setHovered} onClick={(event) => openPanelAt(event, "subject")}>
+                    <Users className="size-4.5" />
+                </ToolbarButton>
+                <ToolbarButton id="tool-history" label="历史记录" active={historyOpen} activeStyle={activeStyle} hovered={hovered} hoverStyle={hoverStyle} wrapRef={wrapRef} onTipPosition={setTipPosition} onHover={setHovered} onClick={(event) => openPanelAt(event, "history")}>
+                    <History className="size-4.5" />
                 </ToolbarButton>
                 <ToolbarButton id="tool-undo" label="撤销" disabled={!canUndo} hovered={hovered} hoverStyle={hoverStyle} wrapRef={wrapRef} onTipPosition={setTipPosition} onHover={setHovered} onClick={() => { closeDockPopovers(); onUndo(); }}>
                     <Undo2 className="size-4.5" />
@@ -221,6 +241,33 @@ export function CanvasToolbar({
                     <DividerBlock theme={theme} />
                     <AddNodeOption theme={theme} icon={<FolderOpen className="size-4" />} label="我的素材" onClick={() => onOpenMaterialLibrary("assets")} onClose={() => setMaterialOpen(false)} />
                     <AddNodeOption theme={theme} icon={<Upload className="size-4" />} label="上传" onClick={onUpload} onClose={() => setMaterialOpen(false)} />
+                </div>
+            ) : null}
+
+            {!assetPanelOpen && subjectOpen ? (
+                <div
+                    ref={panelRef}
+                    className="canvas-toolbar-popover creative-os-panel pointer-events-auto absolute z-30 rounded-[8px] border p-1"
+                    style={{ left: panelLeft, bottom: 80, background: theme.ui.materialElevated, borderColor: theme.ui.hairline, color: theme.node.text }}
+                >
+                    <CanvasVideoSubjectLibrary manageOnly theme={theme} />
+                </div>
+            ) : null}
+
+            {!assetPanelOpen && historyOpen ? (
+                <div
+                    ref={panelRef}
+                    className="canvas-toolbar-popover creative-os-panel pointer-events-auto absolute z-30 rounded-[8px] border p-1"
+                    style={{ left: panelLeft, bottom: 80, background: theme.ui.materialElevated, borderColor: theme.ui.hairline, color: theme.node.text }}
+                >
+                    <CanvasHistoryPanel
+                        entries={historyEntries}
+                        canUndo={canUndo}
+                        canRedo={canRedo}
+                        onJump={(index) => onHistoryJump(index)}
+                        onUndo={() => { onUndo(); }}
+                        onRedo={() => { onRedo(); }}
+                    />
                 </div>
             ) : null}
 
@@ -436,13 +483,14 @@ function CanvasShortcutsModal({ open, theme, onClose }: { open: boolean; theme: 
             title: "移动画布",
             items: [
                 ["键盘", "Space + 拖动"],
-                ["鼠标", "滚轮 / 中键 / 右键拖拽"],
+                ["鼠标", "滚轮 / 中键拖拽"],
                 ["触控板", "双指滑动"],
             ],
         },
         {
             title: "其他",
             items: [
+                ["框选节点", "Shift + 拖动"],
                 ["撤销", "Ctrl + Z"],
                 ["重做", "Ctrl + Shift + Z"],
                 ["删除", "Delete"],
@@ -508,9 +556,11 @@ function toolLabel(id: string) {
     if (id === 'tool-group') return '成组';
     if (id === 'tool-storyboard-group') return '分镜组';
     if (id === "tool-add") return "添加节点";
-    if (id === "tool-select-mode") return "框选模式 · 拖框选择";
+    if (id === "tool-select-mode") return "选择模式 · Shift+拖框选";
     if (id === "tool-pan-mode") return "小手模式 · 拖动画布";
     if (id === "tool-material") return "素材库";
+    if (id === "tool-subject") return "角色库";
+    if (id === "tool-history") return "历史记录";
     if (id === "tool-workflow-toolbox") return "工具箱";
     if (id === "tool-undo") return "撤销";
     if (id === "tool-redo") return "重做";

@@ -110,14 +110,16 @@ function MenuButton({ icon, label, onClick, danger = false, disabled = false, sh
     );
 }
 
-/** 画布空白区域右键菜单（对齐 LibTV：上传/添加节点/撤销/重做/粘贴）。 */
+/** 画布空白区域右键菜单（对齐 LibTV：上传/保存到我的资产/添加节点/撤销/重做/粘贴）。 */
 export function CanvasContextMenu({
     menu,
     canUndo,
     canRedo,
     canPaste,
+    canSaveAsset = false,
     onClose,
     onUpload,
+    onSaveAsset,
     onAddNode,
     onUndo,
     onRedo,
@@ -127,8 +129,11 @@ export function CanvasContextMenu({
     canUndo: boolean;
     canRedo: boolean;
     canPaste: boolean;
+    /** 有选中节点且含可存素材内容时可用（对齐 LibTV 空白右键的「保存到我的资产」） */
+    canSaveAsset?: boolean;
     onClose: () => void;
     onUpload: () => void;
+    onSaveAsset?: () => void;
     onAddNode: () => void;
     onUndo: () => void;
     onRedo: () => void;
@@ -171,6 +176,7 @@ export function CanvasContextMenu({
             onPointerDown={(event) => event.stopPropagation()}
         >
             <MenuButton icon={<Upload className="size-4" />} label="上传" onClick={onUpload} />
+            <MenuButton icon={<FolderPlus className="size-4" />} label="保存到我的资产" disabled={!canSaveAsset} onClick={onSaveAsset} />
             <MenuButton icon={<Plus className="size-4" />} label="添加节点" onClick={onAddNode} />
             <div className="mx-2 my-1 border-t" style={{ borderColor: theme.toolbar.border }} />
             <MenuButton icon={<Undo2 className="size-4" />} label="撤销" shortcut="Ctrl+Z" disabled={!canUndo} onClick={onUndo} />

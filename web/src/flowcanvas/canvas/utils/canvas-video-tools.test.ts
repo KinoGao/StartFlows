@@ -46,6 +46,24 @@ test("buildVideoStoryboardPrompt 包含帧数、时长与 JSON 输出要求", ()
     assert.match(prompt, /JSON 数组/);
 });
 
+test("buildVideoStoryboardPrompt 按拉片维度追加运镜与音效字段", () => {
+    const frames = [{ time: 1, dataUrl: "data:image/jpeg;base64,a" }];
+    const base = buildVideoStoryboardPrompt(frames, 2, ["storyboard"]);
+    assert.ok(!base.includes("运镜"));
+    assert.ok(!base.includes("音效配乐"));
+    const full = buildVideoStoryboardPrompt(frames, 2, ["storyboard", "motion", "music"]);
+    assert.match(full, /运镜/);
+    assert.match(full, /音效配乐/);
+    assert.match(full, /"camera"/);
+    assert.match(full, /"soundEffect"/);
+});
+
+test("parseVideoStoryboardResponse 解析运镜与音效字段", () => {
+    const beats = parseVideoStoryboardResponse('[{"title":"追逐","content":"街头追逐","camera":"跟镜","soundEffect":"脚步声、鼓点"}]');
+    assert.equal(beats[0].camera, "跟镜");
+    assert.equal(beats[0].soundEffect, "脚步声、鼓点");
+});
+
 test("parseVideoStoryboardResponse 解析标准 JSON 数组", () => {
     const beats = parseVideoStoryboardResponse('[{"title":"开场","shotType":"远景","duration":"4s","content":"主角走进教室"}]');
     assert.equal(beats.length, 1);

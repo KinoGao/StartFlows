@@ -13,9 +13,11 @@ import { createVideoSubject, videoSubjectValidationError } from "../utils/canvas
 
 type CanvasVideoSubjectLibraryProps = {
     /** 当前选中的主体 id，空串表示不使用主体 */
-    value: string;
+    value?: string;
     theme: (typeof canvasThemes)[keyof typeof canvasThemes];
-    onChange: (subjectId: string) => void;
+    onChange?: (subjectId: string) => void;
+    /** 管理模式（dock 角色库入口）：不做选择，点击卡片直接编辑 */
+    manageOnly?: boolean;
 };
 
 type SubjectDraft = {
@@ -27,8 +29,8 @@ type SubjectDraft = {
 
 const EMPTY_DRAFT: SubjectDraft = { name: "", description: "", images: [] };
 
-/** 视频节点主体库弹层：选择/新建/编辑/删除账号级视频主体（对齐 LibTV 主体库） */
-export function CanvasVideoSubjectLibrary({ value, theme, onChange }: CanvasVideoSubjectLibraryProps) {
+/** 视频主体库弹层：选择/新建/编辑/删除账号级视频主体（对齐 LibTV 主体库/角色库）。manageOnly 时作为 dock 角色库的管理面板。 */
+export function CanvasVideoSubjectLibrary({ value = "", theme, onChange, manageOnly = false }: CanvasVideoSubjectLibraryProps) {
     const { message } = App.useApp();
     const subjects = useConfigStore((state) => state.config.videoSubjects) || [];
     const updateConfig = useConfigStore((state) => state.updateConfig);
@@ -38,7 +40,7 @@ export function CanvasVideoSubjectLibrary({ value, theme, onChange }: CanvasVide
 
     const removeSubject = (subject: CanvasVideoSubject) => {
         updateConfig("videoSubjects", subjects.filter((item) => item.id !== subject.id));
-        if (value === subject.id) onChange("");
+        if (value === subject.id) onChange?.("");
         message.success(`已删除主体「${subject.name}」`);
     };
 
@@ -82,30 +84,32 @@ export function CanvasVideoSubjectLibrary({ value, theme, onChange }: CanvasVide
 
     return (
         <div className="w-[430px] max-w-[calc(100vw-32px)] p-2" style={{ color: theme.node.text }} onMouseDown={(event) => event.stopPropagation()} onPointerDown={(event) => event.stopPropagation()}>
-            <div className="px-1 pb-2 text-sm font-semibold">主体库</div>
+            <div className="px-1 pb-2 text-sm font-semibold">{manageOnly ? "角色库" : "主体库"}</div>
             <div className="grid max-h-[300px] grid-cols-3 gap-2 overflow-y-auto max-[480px]:grid-cols-2">
-                <button
-                    type="button"
-                    className="relative min-h-[86px] overflow-hidden rounded-md border p-2 text-left transition hover:-translate-y-px"
-                    style={{ borderColor: !value ? theme.ui.accent : theme.ui.hairline, color: theme.node.text }}
-                    onClick={() => onChange("")}
-                >
-                    <span className="block text-xs font-semibold">不使用主体</span>
-                    <span className="mt-1 block text-[10px] leading-4 opacity-65">仅按提示词与连线参考生成</span>
-                    {!value ? <Check className="absolute right-2 top-2 size-3.5" /> : null}
-                </button>
+                {manageOnly ? null : (
+                    <button
+                        type="button"
+                        className="relative min-h-[86px] overflow-hidden rounded-md border p-2 text-left transition hover:-translate-y-px"
+                        style={{ borderColor: !value ? theme.ui.accent : theme.ui.hairline, color: theme.node.text }}
+                        onClick={() => onChange?.("")}
+                    >
+                        <span className="block text-xs font-semibold">不使用主体</span>
+                        <span className="mt-1 block text-[10px] leading-4 opacity-65">仅按提示词与连线参考生成</span>
+                        {!value ? <Check className="absolute right-2 top-2 size-3.5" /> : null}
+                    </button>
+                )}
                 {subjects.map((subject) => (
                     <button
                         key={subject.id}
                         type="button"
                         className="group relative min-h-[86px] overflow-hidden rounded-md border p-2 text-left transition hover:-translate-y-px"
-                        style={{ borderColor: value === subject.id ? theme.ui.accent : theme.ui.hairline, color: theme.node.text }}
-                        onClick={() => onChange(subject.id)}
+                        style={{ borderColor: !manageOnly && value === subject.id ? theme.ui.accent : theme.ui.hairline, color: theme.node.text }}
+                        onClick={() => (manageOnly ? setDraft({ id: subject.id, name: subject.name, description: subject.description, images: [...subject.images] }) : onChange?.(subject.id))}
                     >
                         {subject.images[0] ? <img src={subject.images[0]} alt="" className="pointer-events-none absolute inset-0 size-full object-cover opacity-25" /> : null}
                         <span className="relative block pr-4 text-xs font-semibold">{subject.name}</span>
                         <span className="relative mt-1 line-clamp-2 block text-[10px] leading-4 opacity-65">{subject.description || `${subject.images.length} 张参考图`}</span>
-                        {value === subject.id ? <Check className="absolute right-2 top-2 size-3.5" /> : null}
+                        {!manageOnly && value === subject.id ? <Check className="absolute right-2 top-2 size-3.5" /> : null}
                         <span className="absolute bottom-1.5 right-1.5 flex gap-1 opacity-0 transition group-hover:opacity-100">
                             <span
                                 role="button"

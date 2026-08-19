@@ -3,7 +3,7 @@
 import { Fragment, lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, ChangeEvent as ReactChangeEvent, DragEvent as ReactDragEvent, MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent, ReactNode } from "react";
 import { useNavigate, useParams } from "@/flowcanvas/lib/next-router";
-import { Bot, Box, Check, Clapperboard, CloudOff, FileText, FolderOpen, Home, ImageIcon, Images, Layers3, Link2, List, LoaderCircle, Menu, Music2, Plus, Search, Share2, Sparkles, Trash2, Upload, Video, Workflow, X } from "lucide-react";
+import { Bot, Box, Check, Clapperboard, CloudOff, FileText, FolderOpen, Home, ImageIcon, Images, Layers3, Link2, List, LoaderCircle, Menu, MousePointerClick, Music2, Plus, Search, Share2, Trash2, Upload, Video, Workflow, X } from "lucide-react";
 
 import { saveAs } from "file-saver";
 
@@ -229,7 +229,34 @@ type CanvasHistoryEntry = Pick<CanvasClipboard, "nodes" | "connections"> & {
     alignmentGuidesEnabled: boolean;
     showImageInfo: boolean;
     showConnections: boolean;
+    /** 快照时间（历史记录面板展示用） */
+    at?: number;
 };
+
+/** 由相邻历史快照的差异推导操作描述（节点/连线数量变化优先，其次标题/内容/位置变化） */
+function describeCanvasHistoryDiff(from: CanvasHistoryEntry, to: CanvasHistoryEntry): string {
+    const nodeDelta = to.nodes.length - from.nodes.length;
+    if (nodeDelta > 0) return `新增 ${nodeDelta} 个节点`;
+    if (nodeDelta < 0) return `删除 ${-nodeDelta} 个节点`;
+    const connectionDelta = to.connections.length - from.connections.length;
+    if (connectionDelta > 0) return `新增 ${connectionDelta} 条连线`;
+    if (connectionDelta < 0) return `删除 ${-connectionDelta} 条连线`;
+    const fromById = new Map(from.nodes.map((node) => [node.id, node]));
+    let renamed = 0;
+    let edited = 0;
+    let moved = 0;
+    for (const node of to.nodes) {
+        const previous = fromById.get(node.id);
+        if (!previous) continue;
+        if (previous.title !== node.title) renamed += 1;
+        else if (previous.metadata?.content !== node.metadata?.content) edited += 1;
+        else if (previous.position.x !== node.position.x || previous.position.y !== node.position.y) moved += 1;
+    }
+    if (renamed) return "重命名节点";
+    if (edited) return "编辑节点内容";
+    if (moved) return "移动节点";
+    return "画布调整";
+}
 
 type CanvasGenerationRequest = {
     targetNodeId: string;
@@ -803,6 +830,8 @@ function LeaferCanvasPage() {
     const [titleEditing, setTitleEditing] = useState(false);
     const [titleDraft, setTitleDraft] = useState("");
     const [historyState, setHistoryState] = useState({ canUndo: false, canRedo: false });
+    /** 历史栈版本号：驱动历史记录面板在栈变化时重取条目 */
+    const [historyTick, setHistoryTick] = useState(0);
     const [collapsingBatchIds, setCollapsingBatchIds] = useState<Set<string>>(new Set());
     const [openingBatchIds, setOpeningBatchIds] = useState<Set<string>>(new Set());
     const [isNodeDragging, setIsNodeDragging] = useState(false);
@@ -887,6 +916,7 @@ function LeaferCanvasPage() {
             alignmentGuidesEnabled,
             showImageInfo,
             showConnections,
+            at: Date.now(),
         }),
         [activeChatId, alignmentGuidesEnabled, backgroundMode, chatSessions, showConnections, showImageInfo, snapToGrid],
     );
@@ -1151,6 +1181,7 @@ function LeaferCanvasPage() {
             };
             restoredProjectKeyRef.current = restoreKey;
             setHistoryState({ canUndo: false, canRedo: false });
+            setHistoryTick((value) => value + 1);
             setProjectLoaded(true);
         };
         void restore();
@@ -1185,6 +1216,7 @@ function LeaferCanvasPage() {
             historyRef.current.past = [...historyRef.current.past.slice(-49), last];
             historyRef.current.future = [];
             setHistoryState({ canUndo: true, canRedo: false });
+            setHistoryTick((value) => value + 1);
             lastHistoryRef.current = current;
             historyCommitTimerRef.current = null;
         }, 180);
@@ -1554,29 +1586,6 @@ function LeaferCanvasPage() {
         setConnecting(null);
     }, [setConnecting]);
 
-    const quickCreateFromEmpty = useCallback(
-        (type: CanvasNodeType, metadata?: CanvasNodeMetadata) => {
-            const shellRect = canvasShellRef.current?.getBoundingClientRect();
-            const width = shellRect?.width ?? 800;
-            const height = shellRect?.height ?? 600;
-            const center = {
-                x: (width / 2 - viewport.x) / viewport.k - 120,
-                y: (height / 2 - viewport.y) / viewport.k - 80,
-            };
-            const node = createCanvasNode(type, center, metadata);
-            setNodes((prev) => [...prev, node]);
-            setSelectedNodeIds(new Set([node.id]));
-            setSelectedConnectionId(null);
-            setContextMenu(null);
-            setEditingNodeId(null);
-            // 节点挂载流程会在挂载完成后约 50ms 内清理 dialogNodeId（与点击节点打开的时序竞争），
-            // 立即设置会在节点挂载后被清掉。实测节点挂载约 200-400ms，延迟 400ms 越过清理窗口后
-            // 打开 Composer，保证快捷创建后面板稳定弹出（慢设备上若偶发未弹出，点击节点可打开）。
-            window.setTimeout(() => setDialogNodeId(node.id), 400);
-        },
-        [createCanvasNode, viewport],
-    );
-
     const infoNode = infoNodeId ? nodeById.get(infoNodeId) || null : null;
     const cropNode = cropNodeId ? nodeById.get(cropNodeId) || null : null;
     const maskEditNode = maskEditNodeId ? nodeById.get(maskEditNodeId) || null : null;
@@ -1770,6 +1779,7 @@ function LeaferCanvasPage() {
                     : undefined;
             const newNode = {
                 ...createCanvasNode(type, targetPosition, { ...configMetadata, ...options.metadata }),
+                ...(options.title ? { title: options.title } : null),
                 ...(options.width ? { width: options.width } : null),
                 ...(options.height ? { height: options.height } : null),
             };
@@ -1777,7 +1787,8 @@ function LeaferCanvasPage() {
             setNodes((prev) => [...prev, newNode]);
             setSelectedNodeIds(new Set([newNode.id]));
             setSelectedConnectionId(null);
-            setDialogNodeId(newNode.id);
+            // 拉片节点是自足卡片（上传/维度/开始都在节点体内），创建后不打开 composer
+            if (options.metadata?.canvasTool !== "lapian") setDialogNodeId(newNode.id);
         },
         [createCanvasNode, effectiveConfig.canvasImageCount, effectiveConfig.count, effectiveConfig.imageModel, effectiveConfig.model, effectiveConfig.size, getCanvasCenter],
     );
@@ -1910,6 +1921,16 @@ function LeaferCanvasPage() {
                 size: "2048x1024",
                 freeResize: true,
             },
+        });
+    }, [createNode]);
+
+    /** 逐帧拉片节点（对齐 LibTV）：Video 基底承载素材，canvasTool 标记拉片面板 */
+    const createLapianNode = useCallback(() => {
+        createNode(CanvasNodeType.Video, {
+            title: "逐帧拉片",
+            width: 260,
+            height: 260,
+            metadata: { canvasTool: "lapian", status: NODE_STATUS_IDLE, lapianDimensions: ["storyboard"] },
         });
     }, [createNode]);
 
@@ -2275,8 +2296,34 @@ function LeaferCanvasPage() {
             lastHistoryRef.current = entry;
             applyingHistoryRef.current = false;
             setHistoryState({ canUndo: historyRef.current.past.length > 0, canRedo: historyRef.current.future.length > 0 });
+            setHistoryTick((value) => value + 1);
         });
     }, []);
+
+    /** 历史记录面板（对齐 LibTV 底部工具栏「历史记录」）：由相邻快照差异推导操作描述 */
+    const historyPanelEntries = useMemo(() => {
+        void historyTick;
+        const past = historyRef.current.past;
+        const current = lastHistoryRef.current;
+        return past.map((entry, index) => {
+            const next = past[index + 1] ?? current;
+            return { index, at: entry.at, label: next ? describeCanvasHistoryDiff(entry, next) : "画布编辑" };
+        });
+    }, [historyTick]);
+
+    /** 跳转到指定历史快照：past[index] 成为当前状态，其后的快照与当前状态依次进入重做栈 */
+    const jumpToHistoryEntry = useCallback(
+        (index: number) => {
+            const { past, future } = historyRef.current;
+            const current = lastHistoryRef.current;
+            if (!current || index < 0 || index >= past.length) return;
+            const target = past[index];
+            historyRef.current.past = past.slice(0, index);
+            historyRef.current.future = [...future, current, ...past.slice(index + 1).reverse()];
+            applyHistory(target);
+        },
+        [applyHistory],
+    );
 
     const undoCanvas = useCallback(() => {
         const previous = historyRef.current.past.pop();
@@ -3090,6 +3137,69 @@ function LeaferCanvasPage() {
                 message.error(error instanceof Error ? error.message : "视频解析失败");
             } finally {
                 hide();
+            }
+        },
+        [createCanvasConnection, createCanvasNode, effectiveConfig, message],
+    );
+
+    /** 逐帧拉片（对齐 LibTV 拉片节点）：视频来自本节点上传或连入的视频节点，按选中维度拆解为脚本分镜 */
+    const analyzeLapianNode = useCallback(
+        async (lapianNode: CanvasNodeData) => {
+            const own = Boolean(lapianNode.metadata?.content || lapianNode.metadata?.storageKey);
+            const sourceNode = own
+                ? lapianNode
+                : connectionsRef.current
+                      .filter((connection) => connection.toNodeId === lapianNode.id)
+                      .map((connection) => nodesRef.current.find((node) => node.id === connection.fromNodeId))
+                      .find((node): node is CanvasNodeData => Boolean(node && node.type === CanvasNodeType.Video && (node.metadata?.content || node.metadata?.storageKey)));
+            if (!sourceNode) {
+                message.warning("请先上传视频，或把画布上的视频节点连入拉片节点");
+                return;
+            }
+            const dimensions = lapianNode.metadata?.lapianDimensions?.length ? lapianNode.metadata.lapianDimensions : (["storyboard"] as const).slice();
+            setNodes((prev) => prev.map((item) => (item.id === lapianNode.id ? { ...item, metadata: { ...item.metadata, status: NODE_STATUS_LOADING, errorDetails: undefined } } : item)));
+            try {
+                const url = await resolveNodeContent(sourceNode);
+                if (!url) throw new Error("视频内容为空，无法解析");
+                const { frames, duration } = await captureVideoFrames(url);
+                if (!frames.length) throw new Error("未能从视频中抽取画面帧");
+                const generationConfig = buildGenerationConfig(effectiveConfig, undefined, "text");
+                const messages: AiTextMessage[] = [
+                    {
+                        role: "user",
+                        content: [{ type: "text", text: buildVideoStoryboardPrompt(frames, duration, [...dimensions]) }, ...frames.map((frame) => ({ type: "image_url" as const, image_url: { url: frame.dataUrl } }))],
+                    },
+                ];
+                const answer = await requestImageQuestion(generationConfig, messages, () => {});
+                const beats = parseVideoStoryboardResponse(answer);
+                if (!beats.length) throw new Error("模型没有返回可识别的分镜表，请确认当前文本模型支持识图后重试");
+                const body = buildVideoStoryboardBody(beats);
+                const spec = NODE_DEFAULT_SIZE[CanvasNodeType.Text];
+                const position = { x: lapianNode.position.x + lapianNode.width + 96, y: lapianNode.position.y + lapianNode.height / 2 - spec.height / 2 };
+                const scriptNode = createCanvasNode(
+                    CanvasNodeType.Text,
+                    { x: position.x + spec.width / 2, y: position.y + spec.height / 2 },
+                    {
+                        canvasTool: "script",
+                        content: body,
+                        scriptTitle: `拉片解析：${sourceNode.title || "视频"}`,
+                        scriptBody: body,
+                        scriptBeats: beats,
+                        status: NODE_STATUS_SUCCESS,
+                        generationMode: "text",
+                        fontSize: 14,
+                    },
+                );
+                setNodes((prev) => [...prev, scriptNode]);
+                setConnections((prev) => [...prev, createCanvasConnection(lapianNode.id, scriptNode.id)]);
+                setSelectedNodeIds(new Set([scriptNode.id]));
+                setSelectedConnectionId(null);
+                setDialogNodeId(scriptNode.id);
+                message.success(`已解析出 ${beats.length} 个分镜`);
+            } catch (error) {
+                message.error(error instanceof Error ? error.message : "拉片解析失败");
+            } finally {
+                setNodes((prev) => prev.map((item) => (item.id === lapianNode.id ? { ...item, metadata: { ...item.metadata, status: item.metadata?.content || item.metadata?.storageKey ? NODE_STATUS_SUCCESS : NODE_STATUS_IDLE } } : item)));
             }
         },
         [createCanvasConnection, createCanvasNode, effectiveConfig, message],
@@ -4654,6 +4764,9 @@ function LeaferCanvasPage() {
                 case "panorama360":
                     createPanorama360Node();
                     break;
+                case "lapian":
+                    createLapianNode();
+                    break;
                 case "materialLibrary":
                     openMaterialLibrary("styles");
                     break;
@@ -4665,7 +4778,7 @@ function LeaferCanvasPage() {
                     break;
             }
         },
-        [createNode, createScriptNode, createVideoCompositionNode, createDirectorNode, createPanorama360Node, openMaterialLibrary, handleUploadRequest],
+        [createNode, createScriptNode, createVideoCompositionNode, createDirectorNode, createPanorama360Node, createLapianNode, openMaterialLibrary, handleUploadRequest],
     );
 
     const insertMaterialPreset = useCallback(
@@ -4953,9 +5066,9 @@ function LeaferCanvasPage() {
         message.success("已整理画布布局");
     }, [message]);
 
-    // 空画布快捷模板（对齐 LibTV 空画布模板）：脚本流水线 / 角色三视图 / 首尾帧生视频 / 全能参考生视频
+    // 空画布快捷模板（对齐 LibTV 空画布模板）：脚本流水线 / 角色三视图 / 全能参考生视频 / 音频生视频 / 首尾帧生视频
     const applyCanvasTemplate = useCallback(
-        (template: "script" | "tripleView" | "framesVideo" | "allInOneVideo") => {
+        (template: "script" | "tripleView" | "framesVideo" | "allInOneVideo" | "audioVideo") => {
             if (template === "script") {
                 createScriptNode();
                 return;
@@ -5002,6 +5115,24 @@ function LeaferCanvasPage() {
                     newConnections.push(createCanvasConnection(frameNode.id, videoNode.id));
                 });
             }
+            if (template === "audioVideo") {
+                // 音频生视频：左侧音频节点 + 连线进全能参考视频节点（对齐 LibTV 空画布模板）
+                const audioSpec = NODE_DEFAULT_SIZE[CanvasNodeType.Audio];
+                const position = { x: center.x - videoSpec.width / 2 - audioSpec.width - 96, y: center.y - audioSpec.height / 2 };
+                const audioNode: CanvasNodeData = {
+                    ...createCanvasNode(
+                        CanvasNodeType.Audio,
+                        { x: position.x + audioSpec.width / 2, y: position.y + audioSpec.height / 2 },
+                        { status: NODE_STATUS_IDLE, generationMode: "audio", model: effectiveConfig.audioModel || effectiveConfig.model },
+                    ),
+                    title: "音频",
+                    position,
+                    width: audioSpec.width,
+                    height: audioSpec.height,
+                };
+                newNodes.push(audioNode);
+                newConnections.push(createCanvasConnection(audioNode.id, videoNode.id));
+            }
             nodesRef.current = [...nodesRef.current, ...newNodes];
             connectionsRef.current = [...connectionsRef.current, ...newConnections];
             setNodes((prev) => [...prev, ...newNodes]);
@@ -5010,7 +5141,7 @@ function LeaferCanvasPage() {
             setSelectedConnectionId(null);
             setDialogNodeId(videoNode.id);
         },
-        [createCanvasConnection, createCanvasNode, createNode, createScriptNode, effectiveConfig.imageModel, effectiveConfig.model, effectiveConfig.videoModel, getCanvasCenter],
+        [createCanvasConnection, createCanvasNode, createNode, createScriptNode, effectiveConfig.audioModel, effectiveConfig.imageModel, effectiveConfig.model, effectiveConfig.videoModel, getCanvasCenter],
     );
 
     const createScriptGridStoryboard = useCallback(
@@ -5485,6 +5616,8 @@ function LeaferCanvasPage() {
 
     const renderCanvasConfigNodeContent = useCallback(
         (contentNode: CanvasNodeData) => contentNode.type === CanvasNodeType.Config ? (
+            // 局部 Suspense：lazy 面板首次拉取 chunk 时不得挂起根级边界（会销毁 Leafer App）。
+            <Suspense fallback={null}>
             <CanvasConfigNodePanel
                 node={contentNode}
                 isRunning={runningNodeId === contentNode.id}
@@ -5501,6 +5634,7 @@ function LeaferCanvasPage() {
                     void handleGenerateNode(nodeId, mode, target?.metadata?.composerContent ?? target?.metadata?.prompt ?? "", comfyWorkflowId);
                 }}
             />
+            </Suspense>
         ) : null,
         [configInputSummaryById, configInputsById, confirmStopGeneration, handleConfigNodeChange, handleConfigNodeHeightChange, handleGenerateNode, mentionReferencesByNodeId, runningNodeId],
     );
@@ -5544,9 +5678,9 @@ function LeaferCanvasPage() {
             selectOnlyNode(nodeId);
             setSelectedConnectionId(null);
             setContextMenu(null);
-            // 脚本/导演台节点单击只选中（可移动），不自动打开面板；双击或点节点内按钮再进入
+            // 脚本/导演台/拉片节点单击只选中（可移动），不自动打开面板；双击或点节点内按钮再进入
             const studioNode = nodesRef.current.find((item) => item.id === nodeId);
-            const isStudioKind = studioNode?.metadata?.canvasTool === "script" || studioNode?.metadata?.canvasTool === "director";
+            const isStudioKind = studioNode?.metadata?.canvasTool === "script" || studioNode?.metadata?.canvasTool === "director" || studioNode?.metadata?.canvasTool === "lapian";
             if (!isStudioKind) setDialogNodeId(nodeId);
         },
         [selectOnlyNode],
@@ -5950,6 +6084,9 @@ function LeaferCanvasPage() {
                 case "composition-timeline":
                     void openCompositionTimeline(node);
                     return;
+                case "lapian-start":
+                    void analyzeLapianNode(node);
+                    return;
                 case "image-to-panorama": {
                     const prompt = (node.metadata?.composerContent || node.metadata?.prompt || DEFAULT_PANORAMA_360_PROMPT).trim();
                     const nextNode: CanvasNodeData = {
@@ -5976,7 +6113,7 @@ function LeaferCanvasPage() {
                 }
             }
         },
-        [createConnectedGenerationNode, createScriptNarrationNode, createScriptStoryboard, createScriptVideoNode, effectiveConfig.imageModel, effectiveConfig.model, handleConfigNodeChange, openCompositionTimeline, openNodeComposer],
+        [analyzeLapianNode, createConnectedGenerationNode, createScriptNarrationNode, createScriptStoryboard, createScriptVideoNode, effectiveConfig.imageModel, effectiveConfig.model, handleConfigNodeChange, openCompositionTimeline, openNodeComposer],
     );
     const visibleConnections = useMemo(
         () =>
@@ -6005,8 +6142,8 @@ function LeaferCanvasPage() {
         return result;
     }, [scriptStudioNode, nodes]);
     const sessionPricing = useSessionPricing();
-    // 画布交互模式：默认小手（对齐 LibTV/Figma），可切框选
-    const [interactionMode, setInteractionMode] = useState<"pan" | "select">("pan");
+    // 画布交互模式：默认箭头选择（LibTV 实测契约），底部工具栏可切小手平移
+    const [interactionMode, setInteractionMode] = useState<"pan" | "select">("select");
     const scriptPriceEstimates = useMemo(
         () => ({
             image: sessionPricing ? estimateCanvasTaskPoints(sessionPricing, { type: "image", model: effectiveConfig.imageModel || effectiveConfig.model, quality: effectiveConfig.quality }) : null,
@@ -6316,20 +6453,6 @@ function LeaferCanvasPage() {
                     })}
                 </LeaferCanvas>
 
-                {projectLoaded && canvasVisualReady && nodes.length === 0 ? (
-                    <CanvasEmptyState
-                        theme={theme}
-                        onCreateNode={quickCreateFromEmpty}
-                        onOpenTemplates={() => setWorkflowToolboxOpen(true)}
-                        onOpenCreateMenu={() => {
-                            const rect = containerRef.current?.getBoundingClientRect();
-                            const x = (rect?.left || 0) + (rect?.width || size.width) / 2;
-                            const y = (rect?.top || 0) + (rect?.height || size.height) / 2;
-                            setCreateMenu({ x, y, canvasPosition: screenToCanvas(x, y) });
-                        }}
-                    />
-                ) : null}
-
                 {dialogNode && composerPosition && !isNodeDragging ? (
                     <div
                         ref={composerOverlayRef}
@@ -6438,6 +6561,8 @@ function LeaferCanvasPage() {
                     <ConnectionCreateMenu pending={pendingConnectionCreate} position={pendingConnectionCreatePosition} onCreate={(type) => createConnectedNode(type, pendingConnectionCreate)} onClose={cancelPendingConnectionCreate} />
                 ) : null}
 
+                {/* 局部 Suspense：hover 工具箱是 lazy 组件，首次悬停拉取 chunk 时若挂起到根级边界会卸载整个画布树、销毁 Leafer App（框选/拖动中断）。 */}
+                <Suspense fallback={null}>
                 {!isNodeDragging && !nodeImageSettingsOpen && viewport.k >= 0.3 && toolbarNode && !selectedNodeOwnsToolbar ? (
                     <CanvasNodeHoverToolbar
                         node={toolbarNode}
@@ -6476,32 +6601,38 @@ function LeaferCanvasPage() {
                         onDelete={(node) => deleteNodes(new Set([node.id]))}
                     />
                 ) : null}
+                </Suspense>
 
                 {projectLoaded && nodes.length === 0 ? (
                     <div className="pointer-events-none absolute inset-0 z-40 grid place-items-center">
-                        <div className="pointer-events-auto w-[min(92vw,600px)]">
-                            <div className="mb-3 text-center text-sm" style={{ color: theme.node.muted }}>
-                                从模板开始，或双击空白自由创建节点
+                        <div className="pointer-events-auto flex w-[min(94vw,1100px)] flex-col items-center">
+                            {/* 对齐 LibTV 空画布：双击提示 + 单行模板卡 */}
+                            <div className="mb-6 flex items-center gap-2 text-sm" style={{ color: theme.node.muted }}>
+                                <MousePointerClick className="size-4 opacity-60" />
+                                双击画布 自由生成节点
                             </div>
-                            <div className="grid grid-cols-2 gap-3">
+                            <div className="flex w-full flex-wrap items-stretch justify-center gap-3">
                                 {(
                                     [
                                         { key: "script", icon: <Clapperboard className="size-5" />, title: "故事脚本生成", desc: "剧本拆解分镜，逐镜出帧图与视频" },
                                         { key: "tripleView", icon: <ImageIcon className="size-5" />, title: "角色三视图", desc: "一张设定图锁定角色外观做垫图" },
-                                        { key: "framesVideo", icon: <Images className="size-5" />, title: "首尾帧生视频", desc: "首帧 + 尾帧两张图生成过渡视频" },
                                         { key: "allInOneVideo", icon: <Video className="size-5" />, title: "全能参考生视频", desc: "图片 / 视频 / 音频参考混排生成" },
+                                        { key: "audioVideo", icon: <Music2 className="size-5" />, title: "音频生视频", desc: "音频驱动生成配套画面视频" },
+                                        { key: "framesVideo", icon: <Images className="size-5" />, title: "首尾帧生视频", desc: "首帧 + 尾帧两张图生成过渡视频" },
                                     ] as const
                                 ).map((item) => (
                                     <button
                                         key={item.key}
                                         type="button"
-                                        className="flex flex-col items-start gap-1.5 rounded-2xl border p-4 text-left transition hover:brightness-110"
+                                        className="flex w-[200px] items-center gap-3 rounded-2xl border p-4 text-left transition hover:brightness-110"
                                         style={{ borderColor: theme.toolbar.border, background: theme.node.fill, color: theme.node.text }}
                                         onClick={() => applyCanvasTemplate(item.key)}
                                     >
-                                        <span style={{ color: theme.ui.accent }}>{item.icon}</span>
-                                        <span className="text-sm font-medium">{item.title}</span>
-                                        <span className="text-xs opacity-55">{item.desc}</span>
+                                        <span className="grid size-10 shrink-0 place-items-center rounded-xl" style={{ background: theme.toolbar.activeBg, color: theme.ui.accent }}>{item.icon}</span>
+                                        <span className="min-w-0">
+                                            <span className="block truncate text-sm font-medium">{item.title}</span>
+                                            <span className="mt-0.5 line-clamp-2 block text-[11px] leading-4 opacity-55">{item.desc}</span>
+                                        </span>
                                     </button>
                                 ))}
                             </div>
@@ -6541,6 +6672,8 @@ function LeaferCanvasPage() {
                     }}
                     onOpenMaterialLibrary={openMaterialLibrary}
                     onOpenWorkflowToolbox={() => setWorkflowToolboxOpen(true)}
+                    historyEntries={historyPanelEntries}
+                    onHistoryJump={jumpToHistoryEntry}
                 />
 
                 <CanvasZoomControls
@@ -6550,6 +6683,10 @@ function LeaferCanvasPage() {
                     isMiniMapOpen={isMiniMapOpen}
                     onToggleMiniMap={() => setIsMiniMapOpen((value) => !value)}
                     onTidy={tidyCanvasLayout}
+                    snapToGrid={snapToGrid}
+                    onSnapToGridChange={setSnapToGrid}
+                    showConnections={showConnections}
+                    onShowConnectionsChange={setShowConnections}
                     onOpenMyAssets={() => {
                         setCanvasAssetPanelInitialTab("canvas");
                         setCanvasAssetPanelOpen(true);
@@ -6600,9 +6737,14 @@ function LeaferCanvasPage() {
                         canUndo={historyState.canUndo}
                         canRedo={historyState.canRedo}
                         canPaste={Boolean(crossCanvasClipboard.current?.nodes.length)}
+                        canSaveAsset={nodes.some((node) => selectedNodeIds.has(node.id) && Boolean(node.metadata?.content || node.metadata?.storageKey))}
                         onClose={() => setContextMenu(null)}
                         onUpload={() => {
                             handleUploadRequest(undefined, contextMenu.canvasPosition);
+                            setContextMenu(null);
+                        }}
+                        onSaveAsset={() => {
+                            nodes.filter((node) => selectedNodeIds.has(node.id) && Boolean(node.metadata?.content || node.metadata?.storageKey)).forEach((node) => void saveNodeAsset(node));
                             setContextMenu(null);
                         }}
                         onAddNode={() => {
@@ -6681,6 +6823,8 @@ function LeaferCanvasPage() {
 
                 <input ref={imageInputRef} type="file" accept="image/*,video/*,audio/mpeg,audio/wav,audio/x-wav,.mp3,.wav,text/plain,text/markdown,.txt,.md,.markdown,.srt" className="hidden" onChange={handleImageInputChange} />
 
+                {/* 局部 Suspense：以下弹窗均为 lazy 组件，首次打开拉取 chunk 时不得挂起根级边界（会卸载画布树、销毁 Leafer App）。 */}
+                <Suspense fallback={null}>
                 {infoNode ? <CanvasNodeInfoModal node={infoNode} open={Boolean(infoNode)} onClose={() => setInfoNodeId(null)} /> : null}
 
                 {cropNode && imageToolDialogUrl ? <CanvasNodeCropDialog dataUrl={imageToolDialogUrl} open={Boolean(cropNode)} onClose={() => setCropNodeId(null)} onConfirm={(crop) => void cropImageNode(cropNode!, crop)} /> : null}
@@ -6715,6 +6859,7 @@ function LeaferCanvasPage() {
                 {compositionNode?.metadata?.canvasTool === "videoComposition" ? (
                     <CanvasVideoCompositionDialog open={Boolean(compositionNode)} sources={compositionSources} onClose={() => setCompositionNodeId(null)} onExport={(videoClips, audioClips) => void handleCompositionExport(videoClips, audioClips)} />
                 ) : null}
+                </Suspense>
 
                 <Modal
                     className={previewNode?.metadata?.canvasTool === 'panorama360' ? 'canvas-panorama-modal' : undefined}
@@ -6750,7 +6895,11 @@ function LeaferCanvasPage() {
                     <p className="text-sm opacity-60">这会删除当前画布上的所有节点和连线。</p>
                 </Modal>
 
-                {assetPickerOpen ? <AssetPickerModal open={assetPickerOpen} onInsert={handleAssetInsert} onClose={() => { setAssetPickerOpen(false); setAssetPickerTargetNodeId(null); }} /> : null}
+                {assetPickerOpen ? (
+                    <Suspense fallback={null}>
+                        <AssetPickerModal open={assetPickerOpen} onInsert={handleAssetInsert} onClose={() => { setAssetPickerOpen(false); setAssetPickerTargetNodeId(null); }} />
+                    </Suspense>
+                ) : null}
                 <CanvasMaterialLibraryModal
                     open={materialLibraryOpen}
                     initialTab={materialLibraryTab}
@@ -6780,6 +6929,7 @@ function LeaferCanvasPage() {
                 ) : null}
             </section>
             {projectLoaded && assistantMounted ? (
+                <Suspense fallback={null}>
                 <CanvasAssistantPanel
                     nodes={nodes}
                     selectedNodeIds={selectedNodeIds}
@@ -6798,6 +6948,7 @@ function LeaferCanvasPage() {
                     closing={assistantClosing}
                     onCollapse={closeAgent}
                 />
+                </Suspense>
             ) : null}
         </main>
     );
@@ -7151,58 +7302,6 @@ function nodeIcon(type: CanvasNodeType) {
     if (type === CanvasNodeType.Audio) return <Music2 className="size-4" />;
     if (type === CanvasNodeType.Group) return <Layers3 className="size-4" />;
     return <Box className="size-4" />;
-}
-
-type CanvasEmptyStateProps = {
-    theme: (typeof canvasThemes)[keyof typeof canvasThemes];
-    onCreateNode: (type: CanvasNodeType, metadata?: CanvasNodeMetadata) => void;
-    onOpenTemplates: () => void;
-    onOpenCreateMenu: () => void;
-};
-
-function CanvasEmptyState({ theme, onCreateNode, onOpenTemplates, onOpenCreateMenu }: CanvasEmptyStateProps) {
-    const actions: Array<{ id: string; label: string; description: string; icon: ReactNode; type?: CanvasNodeType; metadata?: CanvasNodeMetadata; onClick?: () => void }> = [
-        { id: "text-to-video", label: "文字生视频", description: "从一句话开始创作镜头", icon: <Video className="size-4.5" />, type: CanvasNodeType.Video, metadata: { generationMode: "video", videoGenerationMode: "text-to-video" } },
-        { id: "image-background", label: "图片换背景", description: "保留主体，快速换场景", icon: <ImageIcon className="size-4.5" />, type: CanvasNodeType.Image, metadata: { generationMode: "image", generationType: "edit", prompt: "保留主体，替换背景环境" } },
-        { id: "first-last-frame", label: "首帧生成视频", description: "从关键画面延展动作", icon: <Clapperboard className="size-4.5" />, type: CanvasNodeType.Video, metadata: { generationMode: "video", videoGenerationMode: "first-last-frame" } },
-        { id: "audio-to-video", label: "音频生视频", description: "用声音作为创作上下文", icon: <Music2 className="size-4.5" />, type: CanvasNodeType.Video, metadata: { generationMode: "video", videoGenerationMode: "all-in-one-reference" } },
-        { id: "text", label: "文本", description: "记录脚本、台词或灵感", icon: <FileText className="size-4.5" />, type: CanvasNodeType.Text },
-        { id: "audio", label: "音频", description: "配音、音乐与音效", icon: <Music2 className="size-4.5" />, type: CanvasNodeType.Audio },
-        { id: "template", label: "模板", description: "复用一套完整工作流", icon: <Workflow className="size-4.5" />, onClick: onOpenTemplates },
-    ];
-
-    const quickActions = [actions[0], actions[1], actions[2], actions[3], actions[6]];
-
-    return (
-        <div className="pointer-events-none absolute inset-0 z-[40] flex items-center justify-center px-4 py-20">
-            <div className="canvas-empty-state pointer-events-auto flex w-[min(900px,calc(100vw-32px))] flex-col items-center text-center">
-                <div className="canvas-empty-guidance flex flex-wrap items-center justify-center gap-x-2 gap-y-1 text-[15px] leading-7" style={{ color: theme.node.muted }}>
-                    <button type="button" className="canvas-empty-double-click inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-[13px] font-semibold" style={{ color: theme.node.text, background: theme.ui.materialElevated, borderColor: theme.ui.hairline }} onClick={onOpenCreateMenu}>
-                        <Sparkles className="size-3.5" style={{ color: theme.ui.accent }} />
-                        双击画布
-                    </button>
-                    <span>自由创作，或浏览模板。</span>
-                </div>
-                <div className="canvas-empty-actions mt-3 flex max-w-full flex-wrap justify-center gap-2">
-                    {quickActions.map((action, index) => (
-                        <button
-                            key={action.id}
-                            type="button"
-                            data-canvas-quick-action={action.id}
-                            className="canvas-empty-action-card canvas-empty-action-pill group inline-flex h-9 items-center gap-2 rounded-full border px-3 text-left text-[12px] font-medium"
-                            style={{ background: theme.ui.materialElevated, borderColor: theme.ui.hairline, color: theme.node.text, animationDelay: `${80 + index * 45}ms` }}
-                            onClick={() => (action.onClick ? action.onClick() : action.type ? onCreateNode(action.type, action.metadata) : undefined)}
-                        >
-                            <span className="canvas-empty-action-icon grid size-4 shrink-0 place-items-center" style={{ color: theme.node.muted }}>
-                                {action.icon}
-                            </span>
-                            <span>{action.label}</span>
-                        </button>
-                    ))}
-                </div>
-            </div>
-        </div>
-    );
 }
 
 function CanvasTopBar({

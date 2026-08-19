@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Button, Popconfirm, Tooltip } from "antd";
-import { Compass, Focus, FolderOpen, LayoutGrid, Minus, Plus } from "lucide-react";
+import { Compass, Focus, FolderOpen, LayoutGrid, Link2, Magnet, Minus, Plus } from "lucide-react";
 
 import { canvasThemes } from "@/flowcanvas/lib/canvas-theme";
 import { useThemeStore } from "@/flowcanvas/stores/use-theme-store";
@@ -14,9 +14,14 @@ type CanvasZoomControlsProps = {
     onToggleMiniMap: () => void;
     onOpenMyAssets: () => void;
     onTidy: () => void;
+    /** 对齐 LibTV 左下工具条：网格吸附与显示/隐藏连线开关 */
+    snapToGrid: boolean;
+    onSnapToGridChange: (enabled: boolean) => void;
+    showConnections: boolean;
+    onShowConnectionsChange: (show: boolean) => void;
 };
 
-export function CanvasZoomControls({ scale, onScaleChange, onReset, isMiniMapOpen, onToggleMiniMap, onOpenMyAssets, onTidy }: CanvasZoomControlsProps) {
+export function CanvasZoomControls({ scale, onScaleChange, onReset, isMiniMapOpen, onToggleMiniMap, onOpenMyAssets, onTidy, snapToGrid, onSnapToGridChange, showConnections, onShowConnectionsChange }: CanvasZoomControlsProps) {
     const [zoomOpen, setZoomOpen] = useState(false);
     const colorTheme = useThemeStore((state) => state.theme);
     const theme = canvasThemes[colorTheme];
@@ -71,6 +76,12 @@ export function CanvasZoomControls({ scale, onScaleChange, onReset, isMiniMapOpe
                 </Popconfirm>
                 <Tooltip title={isMiniMapOpen ? "关闭小地图" : "打开小地图"}>
                     <Button type="text" className="creative-os-icon-button !size-8 !min-w-8 !p-0" style={isMiniMapOpen ? activeStyle : { color: theme.toolbar.item }} icon={<Compass className="size-4" />} onClick={onToggleMiniMap} aria-label={isMiniMapOpen ? "关闭小地图" : "打开小地图"} />
+                </Tooltip>
+                <Tooltip title={snapToGrid ? "关闭网格吸附" : "开启网格吸附"}>
+                    <Button type="text" className="creative-os-icon-button !size-8 !min-w-8 !p-0" style={snapToGrid ? activeStyle : { color: theme.toolbar.item }} icon={<Magnet className="size-4" />} onClick={() => onSnapToGridChange(!snapToGrid)} aria-label="网格吸附" aria-pressed={snapToGrid} />
+                </Tooltip>
+                <Tooltip title={showConnections ? "隐藏连线" : "显示连线"}>
+                    <Button type="text" className="creative-os-icon-button !size-8 !min-w-8 !p-0" style={showConnections ? activeStyle : { color: theme.toolbar.item }} icon={<Link2 className="size-4" />} onClick={() => onShowConnectionsChange(!showConnections)} aria-label="显示/隐藏连线" aria-pressed={showConnections} />
                 </Tooltip>
                 <Tooltip title="重置视图">
                     <Button type="text" className="creative-os-icon-button !size-8 !min-w-8 !p-0" style={{ color: theme.toolbar.item }} icon={<Focus className="size-4" />} onClick={onReset} aria-label="重置视图" />

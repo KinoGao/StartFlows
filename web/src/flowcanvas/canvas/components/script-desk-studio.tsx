@@ -377,7 +377,24 @@ export function ScriptDeskStudio({
                                     placeholder="添加参考图"
                                     value={null}
                                     showSearch
+                                    popupMatchSelectWidth={false}
+                                    styles={{ popup: { root: { minWidth: 232, maxWidth: 320 } } }}
                                     options={referenceOptions.filter((option) => !beatRefIds.includes(option.id)).map((option) => ({ value: option.id, label: option.title }))}
+                                    optionRender={(item) => {
+                                        // 对齐 LibTV 的参考图选择器：缩略图优先，标题只作辅助，避免"图片节点 N"无法辨认
+                                        const option = referenceOptionById.get(String(item.value));
+                                        return (
+                                            <span className="flex items-center gap-2 py-0.5">
+                                                <span className="relative block size-8 shrink-0 overflow-hidden rounded border" style={{ borderColor: theme.toolbar.border, background: theme.ui.controlFill }}>
+                                                    <span className="grid size-full place-items-center opacity-50">
+                                                        <ImageIcon className="size-3.5" />
+                                                    </span>
+                                                    {option?.url ? <img src={option.url} alt={option.title} className="absolute inset-0 size-full object-cover" loading="lazy" /> : null}
+                                                </span>
+                                                <span className="min-w-0 flex-1 truncate text-xs">{option?.title || "参考图"}</span>
+                                            </span>
+                                        );
+                                    }}
                                     onChange={(id) => {
                                         if (id) setBeatRefs([...beatRefIds, id]);
                                     }}

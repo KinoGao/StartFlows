@@ -1,4 +1,4 @@
-import type { CanvasScriptBeat } from "../types";
+import type { CanvasLapianDimension, CanvasScriptBeat } from "../types";
 
 /** 视频解析抽帧：默认每 2 秒 1 帧，最多 10 帧 */
 export const VIDEO_ANALYSIS_MAX_FRAMES = 10;
@@ -17,14 +17,22 @@ export function planVideoFrameTimes(durationSeconds: number, maxFrames = VIDEO_A
     return Array.from({ length: count }, (_, index) => roundTime(Math.min(index * step + step / 2, durationSeconds - 0.05)));
 }
 
-/** 组装视频解析提示词：要求模型只输出分镜 JSON 数组。 */
-export function buildVideoStoryboardPrompt(frames: VideoFrameSample[], durationSeconds: number): string {
+/** 组装视频解析提示词：要求模型只输出分镜 JSON 数组。dimensions 对齐 LibTV 拉片维度：storyboard 分镜（默认）、motion 追加运镜字段、music 追加音效配乐字段。 */
+export function buildVideoStoryboardPrompt(frames: VideoFrameSample[], durationSeconds: number, dimensions: CanvasLapianDimension[] = ["storyboard"]): string {
     const timeline = frames.map((frame, index) => `第 ${index + 1} 帧 ≈ ${frame.time.toFixed(1)}s`).join("，");
+    const withMotion = dimensions.includes("motion");
+    const withMusic = dimensions.includes("music");
+    const fields = ["标题（2-8 字）", "景别（大远景/远景/全景/中景/近景/特写，可省略）", '估计时长（如 "3s"）', "画面描述（主体、动作、场景、氛围，30 字以内）"];
+    if (withMotion) fields.push("运镜（固定/推镜/拉镜/摇镜/跟镜/升降/环绕等，结合帧间画面变化判断）");
+    if (withMusic) fields.push("音效配乐（该镜头适合的环境音、音效与配乐风格，如「雨声、低频氛围乐」）");
+    const jsonKeys = ['"title":"..."', '"shotType":"中景"', '"duration":"3s"', '"content":"画面描述"'];
+    if (withMotion) jsonKeys.push('"camera":"跟镜"');
+    if (withMusic) jsonKeys.push('"soundEffect":"雨声、低频氛围乐"');
     return [
         `下面 ${frames.length} 张图片是按时间顺序从一段约 ${durationSeconds.toFixed(1)} 秒的视频中抽取的画面帧（${timeline}）。`,
-        "请把这段视频拆解为分镜表，识别其中的镜头段落（按画面内容/场景/主体变化划分），每个镜头给出：标题（2-8 字）、景别（大远景/远景/全景/中景/近景/特写，可省略）、估计时长（如 \"3s\"）、画面描述（主体、动作、场景、氛围，30 字以内）。",
+        `请把这段视频拆解为分镜表，识别其中的镜头段落（按画面内容/场景/主体变化划分），每个镜头给出：${fields.join("、")}。`,
         "分镜规范：同一镜头内主体与场景必须一致，主体/场景明显切换即视为新镜头；画面描述写可拍的具体画面（\"人怎么干\"而非\"人干什么\"），相邻镜头衔接保持空间与动作连贯；景别变化体现节奏，情绪高点用近景/特写。",
-        '只输出一个 JSON 数组，不要输出其他内容，格式：[{"title":"...","shotType":"中景","duration":"3s","content":"画面描述"}]',
+        `只输出一个 JSON 数组，不要输出其他内容，格式：[{${jsonKeys.join(",")}}]`,
     ].join("\n");
 }
 
@@ -47,12 +55,16 @@ export function parseVideoStoryboardResponse(text: string): CanvasScriptBeat[] {
             const content = typeof record.content === "string" ? record.content.trim() : "";
             const title = (typeof record.title === "string" && record.title.trim()) || content.slice(0, 12) || `分镜 ${index + 1}`;
             if (!content && !title) return null;
+            const camera = typeof record.camera === "string" && record.camera.trim() ? record.camera.trim() : undefined;
+            const soundEffect = typeof record.soundEffect === "string" && record.soundEffect.trim() ? record.soundEffect.trim() : undefined;
             return {
                 id: `beat-${index + 1}`,
                 title: title.slice(0, 24),
                 content: content || title,
                 shotType: typeof record.shotType === "string" && record.shotType.trim() ? record.shotType.trim() : undefined,
                 duration: normalizeBeatDuration(record.duration),
+                ...(camera ? { camera } : null),
+                ...(soundEffect ? { soundEffect } : null),
                 prompt: `根据脚本分镜生成画面：${content || title}。要求画面有清晰主体、镜头景别、动作和氛围，电影感构图。`,
             };
         })

@@ -2,7 +2,7 @@
 
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
-import { ChevronRight, Clapperboard, FileText, FolderOpen, Image as ImageIcon, Layers3, Link, List, ListOrdered, Maximize2, Music2, Pause, Play, RefreshCw, Sparkles, Star, Upload, Video, Volume2, VolumeX, Workflow } from "lucide-react";
+import { ChevronRight, Clapperboard, FileText, FolderOpen, Image as ImageIcon, Layers3, Link, List, ListOrdered, Maximize2, Music2, Pause, Play, RefreshCw, ScanSearch, Sparkles, Star, Upload, Video, Volume2, VolumeX, Workflow } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { canvasThemes } from "@/flowcanvas/lib/canvas-theme";
 import { formatBytes } from "@/flowcanvas/lib/image-utils";
@@ -14,7 +14,7 @@ import { useThemeStore } from "@/flowcanvas/stores/use-theme-store";
 import { peekImageThumbnailUrl, resolveImageThumbnailUrl } from "@/flowcanvas/services/image-storage";
 import { getMediaBlob, peekCachedMediaUrl, resolveMediaUrl } from "@/flowcanvas/services/file-storage";
 import { CanvasResourceMentionTextarea } from "./canvas-resource-mention-textarea";
-import { CanvasNodeType, type CanvasNodeActionIntent, type CanvasNodeData, type Position as CanvasPosition } from "../types";
+import { CanvasNodeType, type CanvasLapianDimension, type CanvasNodeActionIntent, type CanvasNodeData, type Position as CanvasPosition } from "../types";
 import type { CanvasResourceReference } from "../utils/canvas-resource-references";
 import { getPinColor, getPinColorLabel, getPinColorValue } from "../utils/canvas-pin-utils";
 import { useCanvasScaleRef } from "./canvas-scale-context";
@@ -636,6 +636,7 @@ function NodeContent(props: NodeContentRendererProps): React.ReactElement {
     if (props.node.metadata?.canvasTool === "videoComposition") return <VideoCompositionContent {...props} />;
     if (props.node.metadata?.canvasTool === "director") return <DirectorContent {...props} />;
     if (props.node.metadata?.canvasTool === "script") return <ScriptNodeContent {...props} />;
+    if (props.node.metadata?.canvasTool === "lapian") return <LapianContent {...props} />;
     if (props.node.type === CanvasNodeType.Config && props.renderNodeContent) return <>{props.renderNodeContent(props.node)}</>;
     if (props.isBatchRoot) return <ImageNodeContent {...props} />;
     if (props.node.metadata?.status === "loading") return <LoadingContent node={props.node} theme={props.theme} />;
@@ -890,14 +891,41 @@ function TextContent({ node, theme, isEditingContent, textareaRef, mentionRefere
 
 function VideoCompositionContent({ node, theme, onOpenComposer, onNodeAction }: NodeContentRendererProps) {
     const connectedCount = node.metadata?.references?.length || 0;
+    // 对齐 LibTV 智能剪辑空态：剪刀图标 + 连接提示 + 三个尝试入口
+    if (!connectedCount) {
+        return (
+            <div className="flex h-full w-full flex-col items-center justify-center gap-2.5 px-4 text-center" style={{ background: theme.node.fill, color: theme.node.text }}>
+                <Clapperboard className="size-7 opacity-35" />
+                <div className="text-xs leading-5 opacity-65">空空如也，请连接视频节点后操作</div>
+                <div className="w-full text-left text-[10px] opacity-45">尝试：</div>
+                <div className="flex w-full flex-col gap-1">
+                    {(["讲解视频", "批量广告", "素材混剪"] as const).map((label) => (
+                        <button
+                            key={label}
+                            type="button"
+                            className="flex w-full items-center gap-1.5 rounded-md px-2 py-1 text-left text-[11px] transition hover:brightness-125"
+                            style={{ color: theme.node.text }}
+                            onClick={(event) => {
+                                event.stopPropagation();
+                                onOpenComposer?.();
+                            }}
+                            onMouseDown={(event) => event.stopPropagation()}
+                            onPointerDown={(event) => event.stopPropagation()}
+                        >
+                            <Sparkles className="size-3 shrink-0 opacity-55" />
+                            {label}
+                        </button>
+                    ))}
+                </div>
+            </div>
+        );
+    }
     return (
         <div className="flex h-full w-full flex-col items-center justify-center gap-3 px-4 text-center" style={{ background: theme.node.fill, color: theme.node.text }}>
             <span className="grid size-11 place-items-center rounded-xl" style={{ background: theme.toolbar.activeBg, color: theme.node.placeholder }}>
                 <Clapperboard className="size-5" />
             </span>
-            <div className="text-xs leading-5 opacity-65">
-                {connectedCount ? `已连接 ${connectedCount} 个视频节点，可继续编排合成要求` : "空空如也，请连接视频节点后操作"}
-            </div>
+            <div className="text-xs leading-5 opacity-65">已连接 {connectedCount} 个视频节点，可继续编排合成要求</div>
             <div className="flex items-center gap-2">
                 <button
                     type="button"
@@ -926,6 +954,86 @@ function VideoCompositionContent({ node, theme, onOpenComposer, onNodeAction }: 
                     编排合成
                 </button>
             </div>
+        </div>
+    );
+}
+
+const LAPIAN_DIMENSIONS: { key: CanvasLapianDimension; label: string; icon: ReactNode }[] = [
+    { key: "storyboard", label: "分镜", icon: <Clapperboard className="size-3" /> },
+    { key: "motion", label: "动态", icon: <Sparkles className="size-3" /> },
+    { key: "music", label: "音乐", icon: <Music2 className="size-3" /> },
+];
+
+/** 逐帧拉片节点（对齐 LibTV）：视频素材区 + 拆解维度 chips + 开始拉片。视频可上传到本节点，也可从画布视频节点连入。 */
+function LapianContent({ node, theme, onNodeAction, onTextFormatChange, onUpload }: NodeContentRendererProps) {
+    const videoUrl = useLazyMediaUrl(node.metadata?.storageKey, node.metadata?.content, "media");
+    const analyzing = node.metadata?.status === "loading";
+    const dimensions = node.metadata?.lapianDimensions?.length ? node.metadata.lapianDimensions : (["storyboard"] as CanvasLapianDimension[]);
+    const stop = (event: { stopPropagation: () => void }) => event.stopPropagation();
+    const toggleDimension = (dim: CanvasLapianDimension) => {
+        const next = dimensions.includes(dim) ? dimensions.filter((item) => item !== dim) : [...dimensions, dim];
+        onTextFormatChange?.(node.id, { lapianDimensions: next.length ? next : ["storyboard"] });
+    };
+    return (
+        <div className="flex h-full w-full flex-col gap-2 px-4 py-3" style={{ background: theme.node.fill, color: theme.node.text }}>
+            <div className="text-[10px] font-medium opacity-50">视频素材</div>
+            {videoUrl ? (
+                <video src={videoUrl} className="h-20 w-full shrink-0 rounded-md bg-black object-cover" muted playsInline preload="metadata" onMouseDown={stop} onPointerDown={stop} />
+            ) : (
+                <button
+                    type="button"
+                    className="flex h-20 w-full shrink-0 flex-col items-center justify-center gap-1 rounded-md border border-dashed text-[11px] transition enabled:hover:brightness-125"
+                    style={{ borderColor: theme.toolbar.border, color: theme.node.muted }}
+                    onClick={(event) => {
+                        event.stopPropagation();
+                        onUpload?.();
+                    }}
+                    onMouseDown={(event) => event.stopPropagation()}
+                    onPointerDown={(event) => event.stopPropagation()}
+                >
+                    <Upload className="size-4 opacity-60" />
+                    上传视频开始
+                </button>
+            )}
+            <div className="text-[10px] font-medium opacity-50">拆解维度（可多选，未选默认分镜）</div>
+            <div className="flex items-center gap-1.5">
+                {LAPIAN_DIMENSIONS.map((dim) => {
+                    const active = dimensions.includes(dim.key);
+                    return (
+                        <button
+                            key={dim.key}
+                            type="button"
+                            aria-pressed={active}
+                            className="flex h-6 items-center gap-1 rounded-full border px-2 text-[11px] transition"
+                            style={active ? { borderColor: theme.ui.accent, background: theme.toolbar.activeBg, color: theme.toolbar.activeText } : { borderColor: theme.toolbar.border, color: theme.node.muted }}
+                            onClick={(event) => {
+                                event.stopPropagation();
+                                toggleDimension(dim.key);
+                            }}
+                            onMouseDown={(event) => event.stopPropagation()}
+                            onPointerDown={(event) => event.stopPropagation()}
+                        >
+                            {dim.icon}
+                            {dim.label}
+                        </button>
+                    );
+                })}
+            </div>
+            <button
+                type="button"
+                disabled={analyzing}
+                className="mt-auto h-8 w-full rounded-md text-xs font-medium transition enabled:hover:brightness-110 disabled:opacity-45"
+                style={{ background: theme.toolbar.activeBg, color: theme.toolbar.activeText }}
+                onClick={(event) => {
+                    event.stopPropagation();
+                    onNodeAction?.("lapian-start");
+                }}
+                onMouseDown={(event) => event.stopPropagation()}
+                onPointerDown={(event) => event.stopPropagation()}
+            >
+                {analyzing ? "正在逐帧分析…" : "开始拉片"}
+            </button>
+            {!videoUrl ? <div className="text-center text-[10px] leading-4 opacity-40">或直接从画布把视频节点连入本节点</div> : null}
         </div>
     );
 }
@@ -984,6 +1092,14 @@ function ScriptNodeContent({ theme, onOpenComposer, node }: NodeContentRendererP
             </button>
         </div>
     );
+}
+
+/** 判断是否「AI生成」媒体节点：有媒体内容且带生成痕迹（提示词/模型/生成记录），用户上传的素材不显示角标。 */
+function isAiGeneratedMediaNode(node: CanvasNodeData) {
+    if (node.type !== CanvasNodeType.Image && node.type !== CanvasNodeType.Video && node.type !== CanvasNodeType.Audio) return false;
+    if (node.metadata?.canvasTool) return false;
+    if (!node.metadata?.content && !node.metadata?.storageKey) return false;
+    return Boolean(node.metadata?.prompt || node.metadata?.requestPrompt || node.metadata?.model || node.metadata?.generationRuns?.length);
 }
 
 function NodeTitleBadge({
@@ -1070,6 +1186,12 @@ function NodeTitleBadge({
             {inputCount > 0 || outputCount > 0 ? (
                 <span className="canvas-node-relation-count" title={`输入 ${inputCount} · 输出 ${outputCount}`}>
                     {inputCount > 1 ? `${inputCount} 个参考` : outputCount > 1 ? `${outputCount} 个结果` : "已连接"}
+                </span>
+            ) : null}
+            {/* 对齐 LibTV 节点标题栏的「AI生成」状态角标：仅 AI 生成且已有媒体内容的节点显示 */}
+            {isAiGeneratedMediaNode(node) ? (
+                <span className="shrink-0 rounded px-1 py-px text-[9px] font-medium leading-3" style={{ background: theme.toolbar.activeBg, color: theme.ui.accent }}>
+                    AI生成
                 </span>
             ) : null}
             {imageResolution ? <span className="shrink-0 tabular-nums opacity-60">{imageResolution}</span> : null}
@@ -1513,8 +1635,8 @@ function VideoNodeContent({ node, theme, isSelected, onCaptureVideoFrame, onUplo
                 kind="video"
                 theme={theme}
                 actions={[
-                    { label: "首帧图生视频", onClick: () => onNodeAction?.("video-mode-first-frame") },
-                    { label: "首尾帧生视频", onClick: () => onNodeAction?.("video-mode-first-last") },
+                    { label: "首尾帧生成视频", onClick: () => onNodeAction?.("video-mode-first-last") },
+                    { label: "首帧生成视频", onClick: () => onNodeAction?.("video-mode-first-frame") },
                     { label: "文生视频", onClick: () => onNodeAction?.("video-mode-text") },
                 ]}
             />

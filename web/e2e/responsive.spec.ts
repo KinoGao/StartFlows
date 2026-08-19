@@ -1175,9 +1175,9 @@ test("creative workspaces remain usable without horizontal overflow in light and
             await expectDialogWithinViewport(promptDialog);
             await expect.poll(() => promptDialog.getByRole("textbox", { name: "提示词编辑器" }).evaluate((element) => document.activeElement === element)).toBe(true);
             await promptDialog.getByRole("button", { name: "收起提示词输入" }).click();
-            await page.getByRole("button", { name: "切换到框选模式" }).click();
+            await page.getByRole("button", { name: "选择模式 · Shift+拖框选节点" }).click();
             await expect(page.locator("[data-canvas-surface]")).toHaveAttribute("data-canvas-interaction-mode", "select");
-            await page.getByRole("button", { name: "切换到小手模式" }).click();
+            await page.getByRole("button", { name: "小手模式 · 拖动画布" }).click();
             await expect(page.locator("[data-canvas-surface]")).toHaveAttribute("data-canvas-interaction-mode", "pan");
         }
         await expectNoHorizontalOverflow(page, route);

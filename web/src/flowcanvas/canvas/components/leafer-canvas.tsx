@@ -78,10 +78,10 @@ type LeaferConnectionVisual = {
 };
 
 /**
- * 交互模式同步到 Leafer 交互配置：
- * - pan（小手）：启用 move.dragEmpty，空白处左键拖拽平移画布（Leafer 原生 moveMode，节点/连线命中仍走拖动点选）；
- * - select（框选）：恢复默认，空白处左键拖拽框选。
- * 空白画布的 pointerdown 在 React 侧会被 data-leafer-editor-layer 早退拦截，必须由 Leafer 自身承担平移。
+ * 交互模式同步到 Leafer 交互配置（对齐 LibTV 实测契约）：
+ * - select（箭头，默认）：空白处裸左键拖不操作，Shift/Ctrl/Cmd + 左键拖框选（框选门槛见 App 创建处的 allowDrag patch）；
+ * - pan（小手）：启用 move.dragEmpty，空白处左键拖拽平移画布（Leafer 原生 moveMode，节点/连线命中仍走拖动点选）。
+ * 空白画布的 pointerdown 在 React 侧会被 data-leafer-editor-layer 早退拦截，必须由 Leafer 自身承担平移/框选。
  */
 function applyInteractionMode(app: LUI.App, mode: "pan" | "select") {
     const interaction = (app as unknown as { interaction?: { config?: { move?: { dragEmpty?: boolean } } } }).interaction;
@@ -224,14 +224,11 @@ export function LeaferCanvas({
         selectStartCanvas: { x: number; y: number };
         selectRect: { x: number; y: number; w: number; h: number } | null;
         selectionMode: 'replace' | 'add' | 'toggle';
-        fromRightButton?: boolean;
     }>({
         type: null, startScreenX: 0, startScreenY: 0,
         startViewportX: 0, startViewportY: 0,
         selectStartCanvas: { x: 0, y: 0 }, selectRect: null, selectionMode: 'replace',
     });
-    // 右键拖拽超过阈值后置位，用于抑制紧随其后的 contextmenu 菜单（画布/节点/连线三条路径）。
-    const suppressContextMenuRef = useRef(false);
 
     const frozenTempEdgeRef = useRef<NonNullable<LeaferCanvasProps["pendingConnection"]>>(null);
     const previousPendingConnectionRef = useRef(pendingConnection ?? null);
@@ -707,8 +704,8 @@ export function LeaferCanvas({
             wheel: {
                 zoomMode: false,
                 preventDefault: true,
-                // TapNow 契约：普通滚轮/触控板双指 = 平移（getScale 返回 1 时 Leafer 走 move 分支），
-                // Ctrl/Cmd + 滚轮或触控板捏合（浏览器上报为 ctrlKey wheel）= 以指针为锚点缩放。
+                // LibTV 契约：普通滚轮/触控板双指 = 平移（getScale 返回 1 时 Leafer 走 move 分支，
+                // Leafer 内置 getMove 已处理 Shift+滚轮转横向）；Ctrl/Cmd + 滚轮或触控板捏合 = 以指针为锚点缩放。
                 getScale: (event) => {
                     if (!event.ctrlKey && !event.metaKey) return 1;
                     const delta = event.deltaY || event.deltaX;
@@ -722,13 +719,29 @@ export function LeaferCanvas({
             move: {
                 holdSpaceKey: true,
                 holdMiddleKey: true,
-                dragOut: 32,
-                autoDistance: 3,
+                // 不开启 dragOut/autoDistance 边缘自动平移：我们的容器不走 app.resize()，shrinkCanvasBounds 退化后
+                // 每次拖动都会触发 autoMoveOnDragOut，其 10ms 定时器在拖动外持续 PointHelper.move(null) 形成错误风暴。
             },
         });
         const editor = app.editor as Editor;
+        // LibTV 契约：裸左键拖空白不做任何操作，只有按住 Shift/Ctrl/Cmd 拖动才框选。
+        // Leafer 官方没有 boxSelect 修饰键配置，实例级遮蔽 EditSelect.allowDrag 加修饰键门槛。
+        type EditorDragEvent = { shiftKey?: boolean; ctrlKey?: boolean; metaKey?: boolean };
+        const editSelect = (editor as unknown as { selector?: { allowDrag?: (e: EditorDragEvent) => boolean } }).selector;
+        if (editSelect?.allowDrag) {
+            const originalAllowDrag = editSelect.allowDrag.bind(editSelect);
+            editSelect.allowDrag = (e: EditorDragEvent) =>
+                Boolean(e.shiftKey || e.ctrlKey || e.metaKey) && originalAllowDrag(e);
+        }
         leaferRef.current = app;
         editorRef.current = editor;
+        // App 根节点默认 bounds 为 0×0，EditSelect.findByBounds 从 app 开始按 __world 命中检测逐层下钻，
+        // 根节点命中失败会导致框选永远找不到任何节点，必须同步容器真实尺寸。
+        const syncAppSize = () => {
+            app.width = Math.max(1, container.clientWidth);
+            app.height = Math.max(1, container.clientHeight);
+        };
+        syncAppSize();
         applyInteractionMode(app, interactionModeRef.current);
         syncEditorViewport(viewportRef.current);
 
@@ -789,6 +802,7 @@ export function LeaferCanvas({
         syncSkyOverlays(viewportRef.current);
 
         const resizeObserver = new ResizeObserver(() => {
+            syncAppSize();
             drawBackground(viewportRef.current);
             syncSkyOverlays(viewportRef.current);
         });
@@ -946,10 +960,6 @@ export function LeaferCanvas({
                     if (wasHovered) callbacksRef.current.onNodeHoverChange?.(null);
                 });
                 rect.on(LUI.PointerEvent.MENU, (event: LUI.PointerEvent) => {
-                    if (suppressContextMenuRef.current) {
-                        suppressContextMenuRef.current = false;
-                        return;
-                    }
                     const pagePoint = event.getPagePoint();
                     const bounds = containerRef.current?.getBoundingClientRect();
                     if (!bounds) return;
@@ -1180,10 +1190,6 @@ export function LeaferCanvas({
                     updateConnectionVisualStyle(connection.id);
                 });
                 hit.on(LUI.PointerEvent.MENU, (event: LUI.PointerEvent) => {
-                    if (suppressContextMenuRef.current) {
-                        suppressContextMenuRef.current = false;
-                        return;
-                    }
                     const pagePoint = event.getPagePoint();
                     const bounds = containerRef.current?.getBoundingClientRect();
                     if (!bounds) return;
@@ -1397,23 +1403,7 @@ export function LeaferCanvas({
         const isTextEditableContent = !!target.closest("[data-node-text-editable]");
         const cb = callbacksRef.current;
 
-        // 右键拖拽平移（TapNow/Figma 契约）：任意位置右键按下即进入 pan，
-        // 位移超过 6px 置 suppressContextMenuRef，短按抬起仍正常出菜单。
-        if (event.button === 2) {
-            dragRef.current = {
-                type: "pan",
-                fromRightButton: true,
-                startScreenX: event.clientX, startScreenY: event.clientY,
-                startViewportX: viewportRef.current.x, startViewportY: viewportRef.current.y,
-                selectStartCanvas: getCanvasPos(event.clientX, event.clientY),
-                selectRect: null,
-                selectionMode: "replace",
-            };
-            event.currentTarget.setPointerCapture?.(event.pointerId);
-            event.preventDefault();
-            document.body.style.userSelect = "none";
-            return;
-        }
+        // LibTV 契约：右键只打开上下文菜单，不平移画布（contextmenu 由 handleContextMenu 统一处理）。
 
         // Leafer owns hit testing, selection, box selection, node transforms and viewport gestures.
         if (target.closest("[data-leafer-editor-layer]")) return;
@@ -1514,9 +1504,6 @@ export function LeaferCanvas({
                 drag.startScreenY = event.clientY;
             }
             if (drag.type === "pan") {
-                if (drag.fromRightButton && Math.hypot(event.clientX - drag.startScreenX, event.clientY - drag.startScreenY) > 6) {
-                    suppressContextMenuRef.current = true;
-                }
                 const next = {
                     x: drag.startViewportX + (event.clientX - drag.startScreenX),
                     y: drag.startViewportY + (event.clientY - drag.startScreenY),
@@ -1630,10 +1617,6 @@ export function LeaferCanvas({
 
     const handleContextMenu = useCallback((event: React.MouseEvent) => {
         event.preventDefault();
-        if (suppressContextMenuRef.current) {
-            suppressContextMenuRef.current = false;
-            return;
-        }
         const pos = getCanvasPos(event.clientX, event.clientY);
         callbacksRef.current.onContextMenu?.(event, pos);
     }, [getCanvasPos]);
