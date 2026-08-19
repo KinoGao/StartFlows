@@ -673,7 +673,8 @@ export function LeaferCanvas({
                 skewable: false,
                 flipable: false,
                 lockRatio: "corner",
-                stroke: themeRef.current.ui.accent,
+                // 对齐 LibTV：选中框用中性对比色（深色白/浅色黑），不用 accent 青色
+                stroke: themeRef.current.node.text,
                 strokeWidth: 1.5,
                 pointFill: themeRef.current.node.panel,
                 pointSize: 9,
@@ -1222,7 +1223,7 @@ export function LeaferCanvas({
     useEffect(() => {
         const editor = editorRef.current;
         if (!editor) return;
-        editor.config.stroke = theme.ui.accent;
+        editor.config.stroke = theme.node.text;
         editor.config.pointFill = theme.node.panel;
         editor.update();
         tempEdgeFlowPathRef.current?.set({
@@ -1758,7 +1759,8 @@ function applyNodeInteractionVisual(
     const accentShadow = withAlpha(theme.ui.accent, 0.28);
     rect.set({
         cornerRadius: CANVAS_NODE_RADIUS,
-        stroke: active || state.related || state.hovered ? theme.ui.accent : theme.ui.hairline,
+        // 对齐 LibTV：选中/连线目标用中性对比描边，弱关联与悬停用 muted，默认 hairline；不再用 accent 青色
+        stroke: active ? theme.node.text : state.related || state.hovered ? theme.node.muted : theme.ui.hairline,
         strokeWidth: state.connectionTarget ? 2.4 : state.selected ? 1.8 : state.hovered ? 1.5 : state.related ? 1.25 : 1,
         shadow: state.dragging
             ? [

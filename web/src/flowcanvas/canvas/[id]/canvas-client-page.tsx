@@ -678,6 +678,7 @@ function LeaferCanvasPage() {
     const composerPanelRef = useRef<HTMLDivElement>(null);
     const dialogNodeRef = useRef<CanvasNodeData | null>(null);
     const composerHeightRef = useRef(360);
+    const composerWidthRef = useRef(0);
     const composerScrollRestoreRef = useRef<number | null>(null);
     const imageInputRef = useRef<HTMLInputElement>(null);
     const uploadTargetRef = useRef<{ nodeId?: string; position?: Position } | null>(null);
@@ -6171,6 +6172,7 @@ function LeaferCanvasPage() {
           )
         : 0;
     dialogNodeRef.current = dialogNode;
+    composerWidthRef.current = composerWidth;
     useLayoutEffect(() => {
         const panel = composerPanelRef.current;
         if (!panel || !dialogNode) return;
@@ -6234,8 +6236,10 @@ function LeaferCanvasPage() {
             nodeBottom,
             composerHeight: composerContentHeight,
             canvasHeight: shellRect?.height || containerRect?.height || size.height,
+            canvasWidth: shellRect?.width || containerRect?.width || size.width,
+            panelWidth: composerWidth,
         });
-    }, [composerContentHeight, dialogNode, size.height, viewport.k, viewport.x, viewport.y]);
+    }, [composerContentHeight, composerWidth, dialogNode, size.height, size.width, viewport.k, viewport.x, viewport.y]);
 
     const handleViewportPresentation = useCallback((next: ViewportTransform) => {
         viewportRef.current = next;
@@ -6256,6 +6260,8 @@ function LeaferCanvasPage() {
             nodeBottom,
             composerHeight: composerHeightRef.current,
             canvasHeight: shellRect?.height || containerRect?.height || size.height,
+            canvasWidth: shellRect?.width || containerRect?.width || size.width,
+            panelWidth: composerWidthRef.current,
         });
 
         overlay.style.left = `${position.left}px`;
@@ -6282,6 +6288,7 @@ function LeaferCanvasPage() {
                     "--creative-control-fill": theme.ui.controlFill,
                     "--creative-danger": theme.ui.danger,
                     "--creative-text": theme.node.text,
+                    "--creative-text-inverse": theme.canvas.background,
                     "--creative-muted": theme.node.muted,
                 } as CSSProperties
             }

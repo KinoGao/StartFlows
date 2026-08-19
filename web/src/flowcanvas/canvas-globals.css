@@ -1254,10 +1254,10 @@
 
     .creative-os-primary-action.ant-btn,
     .creative-os-primary-action {
-        background: var(--creative-accent) !important;
+        background: var(--creative-text) !important;
         border-color: transparent !important;
-        box-shadow: 0 5px 16px color-mix(in srgb, var(--creative-accent) 30%, transparent) !important;
-        color: white !important;
+        box-shadow: 0 5px 16px color-mix(in srgb, var(--creative-text) 24%, transparent) !important;
+        color: var(--creative-text-inverse) !important;
         font-weight: 600;
     }
 
@@ -1270,6 +1270,7 @@
     .creative-os-primary-action.ant-btn-dangerous,
     .creative-os-primary-action.ant-btn-dangerous:hover {
         background: var(--creative-danger) !important;
+        color: #fff !important;
     }
     .creative-os-shortcuts {
         max-height: min(70vh, 620px);

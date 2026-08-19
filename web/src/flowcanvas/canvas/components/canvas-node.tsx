@@ -226,7 +226,8 @@ export const CanvasNode = React.memo(function CanvasNode({
     const isBatchRoot = data.type === CanvasNodeType.Image && Boolean(data.metadata?.isBatchRoot) && batchCount > 1;
     const isBatchChild = data.type === CanvasNodeType.Image && Boolean(data.metadata?.batchRootId);
     const isActive = isConnectionTarget || isSelected || isFocusRelated;
-    const imageBorderColor = isActive || (isRelated && !isBatchChild) ? theme.ui.accent : theme.ui.hairline;
+    // 对齐 LibTV：选中态用中性对比描边（深色白/浅色黑），弱关联才用 accent 提示
+    const imageBorderColor = isActive ? theme.node.text : isRelated && !isBatchChild ? theme.ui.accent : theme.ui.hairline;
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const panelRef = useRef<HTMLDivElement>(null);
     const nodeRef = useRef<HTMLDivElement>(null);
@@ -508,11 +509,11 @@ export const CanvasNode = React.memo(function CanvasNode({
                         : hasImageContent
                             ? imageBorderColor
                             : isActive
-                              ? theme.ui.accent
+                              ? theme.node.text
                               : isRelated
                                 ? theme.ui.accent
                                 : theme.ui.hairline,
-                    boxShadow: editorManaged ? undefined : isGroup ? (isSelected ? `0 0 0 2px ${theme.ui.accentSoft}` : undefined) : isActive ? `0 0 0 2px ${theme.ui.accent}, ${theme.ui.shadow}` : undefined,
+                    boxShadow: editorManaged ? undefined : isGroup ? (isSelected ? `0 0 0 2px ${theme.ui.accentSoft}` : undefined) : isActive ? `0 0 0 1px ${theme.node.text}, ${theme.ui.shadow}` : undefined,
                 }}
                 onDoubleClick={(event) => {
                     if (data.type === CanvasNodeType.Image && hasImageContent) return;
@@ -574,6 +575,12 @@ export const CanvasNode = React.memo(function CanvasNode({
                 </div>
 
                 {!isGroup && !shouldUseOverview ? <NodeTitleBadge node={data} theme={theme} inputCount={inputCount} outputCount={outputCount} onTitleChange={onTitleChange} /> : null}
+                {/* 对齐 LibTV：AI生成 角标在媒体左上角内侧（深色半透 pill），不占标题行 */}
+                {!isGroup && !shouldUseOverview && isAiGeneratedMediaNode(data) ? (
+                    <span className="pointer-events-none absolute left-2 top-2 z-30 rounded bg-black/55 px-1.5 py-0.5 text-[10px] font-medium leading-3 text-white/90 backdrop-blur-sm">
+                        AI生成
+                    </span>
+                ) : null}
                 {isGroup ? <GroupTitleEditor node={data} theme={theme} onTitleChange={onTitleChange} /> : null}
                 {!shouldUseOverview && !isGroup ? <NodePinIndicator node={data} theme={theme} /> : null}
                 {!shouldUseOverview && resourceLabel ? <ResourceLabelBadge reference={resourceLabel} /> : null}
@@ -1117,9 +1124,10 @@ function NodeTitleBadge({
 }) {
     const Icon = node.type === CanvasNodeType.Image ? ImageIcon : node.type === CanvasNodeType.Video ? Video : node.type === CanvasNodeType.Audio ? Music2 : isGenerationConfigNode(node.type) ? Workflow : node.type === CanvasNodeType.Group ? Layers3 : FileText;
     const fallbackTitle = "未命名节点";
-    const imageResolution = node.type === CanvasNodeType.Image && node.metadata?.naturalWidth && node.metadata?.naturalHeight
-        ? `${Math.round(node.metadata.naturalWidth)} × ${Math.round(node.metadata.naturalHeight)}`
-        .replace(/\D+/g, " x ") : "";
+    // 对齐 LibTV：图片/视频节点标题行右侧显示真实媒体尺寸（1280 × 720）
+    const mediaResolution = (node.type === CanvasNodeType.Image || node.type === CanvasNodeType.Video) && node.metadata?.naturalWidth && node.metadata?.naturalHeight
+        ? `${Math.round(node.metadata.naturalWidth)} × ${Math.round(node.metadata.naturalHeight)}` : "";
+    const isSizedMediaNode = node.type === CanvasNodeType.Image || node.type === CanvasNodeType.Video;
     const [editing, setEditing] = useState(false);
     const [draft, setDraft] = useState("");
     const cancelRef = useRef(false);
@@ -1135,7 +1143,7 @@ function NodeTitleBadge({
     return (
         <div
             data-canvas-no-zoom
-            className={`canvas-node-title absolute -top-[24px] z-30 flex items-center gap-1 text-[11px] leading-4 ${node.type === CanvasNodeType.Image ? "inset-x-0 justify-between" : "left-0 max-w-full"}`}
+            className={`canvas-node-title absolute -top-[24px] z-30 flex items-center gap-1 text-[11px] leading-4 ${isSizedMediaNode ? "inset-x-0 justify-between" : "left-0 max-w-full"}`}
             style={{ color: theme.node.label }}
         >
             <div className="flex min-w-0 items-center gap-1">
@@ -1188,13 +1196,7 @@ function NodeTitleBadge({
                     {inputCount > 1 ? `${inputCount} 个参考` : outputCount > 1 ? `${outputCount} 个结果` : "已连接"}
                 </span>
             ) : null}
-            {/* 对齐 LibTV 节点标题栏的「AI生成」状态角标：仅 AI 生成且已有媒体内容的节点显示 */}
-            {isAiGeneratedMediaNode(node) ? (
-                <span className="shrink-0 rounded px-1 py-px text-[9px] font-medium leading-3" style={{ background: theme.toolbar.activeBg, color: theme.ui.accent }}>
-                    AI生成
-                </span>
-            ) : null}
-            {imageResolution ? <span className="shrink-0 tabular-nums opacity-60">{imageResolution}</span> : null}
+            {mediaResolution ? <span className="shrink-0 tabular-nums opacity-60">{mediaResolution}</span> : null}
         </div>
     );
 }
@@ -1369,7 +1371,44 @@ function MediaNodeQuickActions({ kind, theme, onUpload, onOpenAssetPicker }: {
 function NodeStarterPanel({ theme, kind = "text", actions }: { theme: (typeof canvasThemes)[keyof typeof canvasThemes]; kind?: NodeStarterKind; actions: Array<{ label: string; onClick?: () => void }> }) {
     const visual = nodeStarterVisuals[kind];
     const NodeIcon = visual.icon as LucideIcon;
-    const actionIcons = kind === "text" ? [FileText, Video, Music2, Clapperboard] : kind === "image" ? [ImageIcon, FolderOpen] : kind === "video" ? [Video, Sparkles] : kind === "comfyui" ? [Workflow, Sparkles] : [Music2, Sparkles];
+    const actionIcons = kind === "text" ? [FileText, Video, Music2, Clapperboard] : kind === "image" ? [ImageIcon, FolderOpen] : kind === "video" ? [Layers3, ImageIcon, Sparkles] : kind === "comfyui" ? [Workflow, Sparkles] : [Music2, Sparkles];
+
+    // 对齐 LibTV 空视频节点：卡内居中播放三角水印 + “尝试：” + 纯文字入口行（无边框按钮、无 › 箭头）
+    if (kind === "video") {
+        return (
+            <div className="relative flex h-full w-full overflow-hidden rounded-[inherit]" style={{ background: theme.node.fill }}>
+                <div className="pointer-events-none absolute inset-x-0 top-0 grid h-[52%] place-items-center">
+                    <Play className="size-16 fill-current" style={{ color: theme.node.text, opacity: 0.07 }} />
+                </div>
+                <div className="relative z-10 mt-auto flex w-full flex-col gap-0.5 px-3.5 pb-3 pt-2 text-left">
+                    <div className="mb-1 text-[11px]" style={{ color: theme.node.placeholder }}>尝试：</div>
+                    {actions.map((action, index) => {
+                        const ActionIcon = actionIcons[index] ?? Sparkles;
+                        return (
+                            <button
+                                key={action.label}
+                                type="button"
+                                data-canvas-no-zoom
+                                className="flex h-7 w-full items-center gap-2 rounded-md px-1 text-left text-[12px] transition-colors"
+                                style={{ color: theme.node.muted, background: "transparent" }}
+                                onClick={(event) => {
+                                    event.stopPropagation();
+                                    action.onClick?.();
+                                }}
+                                onMouseDown={(event) => event.stopPropagation()}
+                                onPointerDown={(event) => event.stopPropagation()}
+                                onMouseEnter={(event) => (event.currentTarget.style.color = theme.node.text)}
+                                onMouseLeave={(event) => (event.currentTarget.style.color = theme.node.muted)}
+                            >
+                                <ActionIcon className="size-3.5 shrink-0 opacity-70" />
+                                <span className="min-w-0 flex-1 truncate">{action.label}</span>
+                            </button>
+                        );
+                    })}
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="relative flex h-full w-full overflow-hidden rounded-[inherit] p-4 text-left" style={{ background: `linear-gradient(145deg, ${theme.node.panel}, ${theme.node.fill})` }}>

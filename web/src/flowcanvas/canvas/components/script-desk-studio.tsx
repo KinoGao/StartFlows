@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
-import { AutoComplete, Button, Checkbox, Dropdown, Modal, Popconfirm, Select } from "antd";
-import { Check, ChevronDown, ChevronRight, Clapperboard, Download, Image as ImageIcon, ListOrdered, Plus, Sparkles, Upload, Workflow, X } from "lucide-react";
+import { App, AutoComplete, Button, Checkbox, Dropdown, Modal, Select } from "antd";
+import { ArrowRight, Check, ChevronRight, Clapperboard, Download, Image as ImageIcon, ListOrdered, MoreHorizontal, Plus, Sparkles, Upload, Workflow, X } from "lucide-react";
 
 import type { canvasThemes } from "@/flowcanvas/lib/canvas-theme";
 import { buildScriptBeats } from "../utils/canvas-script-beats";
@@ -43,8 +43,8 @@ const COLOR_MARKS: Array<{ value: NonNullable<CanvasScriptBeat["colorMark"]>; la
 
 type ExportTarget = "video" | "comfyui" | "image";
 
-// 分镜表格列：镜号标题 / 画面描述 / 景别 / 时长 / 光影氛围 / 对白·旁白 / 音效 / 运镜 / 生成 / 操作
-const BEAT_GRID = "grid-cols-[150px_minmax(220px,1fr)_96px_76px_130px_150px_110px_110px_170px_150px]";
+// 分镜表格列（对齐 LibTV）：镜号 / 时长 / 画面描述 / 景别 / 光影氛围 / 对白·旁白 / 音效 / 运镜 / 最终提示词 / 操作
+const BEAT_GRID = "grid-cols-[48px_64px_minmax(180px,1fr)_90px_120px_140px_110px_110px_110px_48px]";
 
 /**
  * 脚本节点全屏工作台（对齐 LibTV 脚本生成器的三步引导流水线）：
@@ -107,6 +107,7 @@ export function ScriptDeskStudio({
     const acts = node.metadata?.scriptActs ?? [];
     const assets = node.metadata?.scriptAssets ?? [];
     const fieldStyle = { background: theme.node.fill, borderColor: theme.toolbar.border, color: theme.node.text };
+    const { modal } = App.useApp();
     const [step, setStep] = useState<1 | 2 | 3>(1);
     const [expandedBeatId, setExpandedBeatId] = useState<string | null>(null);
     const [actTitleDrafts, setActTitleDrafts] = useState<Record<string, string>>({});
@@ -175,6 +176,9 @@ export function ScriptDeskStudio({
     }, [assets, node.metadata?.scriptAssetOutputs, referenceOptionById]);
     const synthesizedCount = useMemo(() => beats.filter((beat) => beat.imagePrompt && beat.videoPrompt).length, [beats]);
     const frameReadyCount = useMemo(() => beats.filter((beat) => { const id = node.metadata?.scriptBeatFrames?.[beat.id]; return id && referenceOptionById.has(id); }).length, [beats, node.metadata?.scriptBeatFrames, referenceOptionById]);
+    // 画面描述高亮用的资产名：长的优先，避免短名截断长名
+    const assetNameTokens = useMemo(() => [...new Set(assets.map((asset) => asset.name.trim()).filter(Boolean))].sort((a, b) => b.length - a.length), [assets]);
+    const beatsReady = beats.length > 0 && beats.every((beat) => beat.content.trim());
 
     const addAct = () => {
         onChange({ scriptActs: [...acts, { id: `act-${Date.now()}`, title: `第${acts.length + 1}幕` }] });
@@ -236,42 +240,18 @@ export function ScriptDeskStudio({
     const promptBeat = promptBeatId ? beats.find((beat) => beat.id === promptBeatId) || null : null;
 
     const steps = [
-        { index: 1 as const, label: "确认镜头", count: `${beats.length} 镜` },
-        { index: 2 as const, label: "准备资产", count: assets.length ? `${assets.length - missingAssetCount}/${assets.length}` : "0 项" },
-        { index: 3 as const, label: "合成提示词", count: `${synthesizedCount}/${beats.length}` },
+        { index: 1 as const, label: "确认镜头", count: beats.length ? (beatsReady ? `${beats.length}个镜头已就绪` : `${beats.length}个镜头待核对`) : "暂无镜头" },
+        { index: 2 as const, label: "准备资产", count: assets.length ? `${assets.length - missingAssetCount}/${assets.length}已生成${missingAssetCount ? `、还差${missingAssetCount}个` : ""}` : "暂无资产" },
+        { index: 3 as const, label: "合成提示词", count: `${synthesizedCount}/${beats.length}已合成` },
     ];
+    const stepDone = [beatsReady, assets.length > 0 && missingAssetCount === 0, beats.length > 0 && synthesizedCount === beats.length];
+    const doneStepCount = stepDone.filter(Boolean).length;
 
-    /** 分镜行的帧图/垫图状态 chips + 生成入口（步骤 1 表格与步骤 3 共用） */
-    const renderBeatGenerate = (beat: CanvasScriptBeat, index: number) => {
-        const frameNodeId = node.metadata?.scriptBeatFrames?.[beat.id];
-        const frameState = outputStates[`${beat.id}:frame`] || "idle";
-        const frameStatus = SCRIPT_OUTPUT_STATUS[frameState];
-        const refCount = resolveScriptBeatReferenceIds(beat, assets, node.metadata?.scriptAssetOutputs ?? {}, isReferenceOption).length;
-        return (
-            <div className="flex items-center gap-1.5">
-                {frameNodeId ? (
-                    <span className="shrink-0 rounded px-1.5 py-0.5 text-[11px]" style={statusTagStyle(frameStatus.color)} title={`分镜帧：${frameStatus.label}`}>
-                        帧图·{frameStatus.label}
-                    </span>
-                ) : null}
-                {refCount ? <span className="shrink-0 rounded px-1.5 py-0.5 text-[11px] opacity-70" style={{ background: theme.ui.controlFill }}>垫图{refCount}</span> : null}
-                <Dropdown
-                    menu={{
-                        items: [
-                            { key: "image", label: "分镜图节点", icon: <ImageIcon className="size-3.5" /> },
-                            { key: "video", label: "视频节点", icon: <Clapperboard className="size-3.5" /> },
-                            { key: "comfyui", label: "ComfyUI 节点", icon: <Workflow className="size-3.5" /> },
-                        ],
-                        onClick: ({ key }) => onGenerateBeat(beat, index, key as ExportTarget),
-                    }}
-                    disabled={!beat.content.trim() && !beat.title.trim()}
-                >
-                    <Button size="small" type="primary" ghost>
-                        生成
-                    </Button>
-                </Dropdown>
-            </div>
-        );
+    /** 画面描述中的角色/场景/道具名渲染成主题色 token（对齐 LibTV 脚本表格） */
+    const renderContentWithAssetTokens = (text: string) => {
+        if (!assetNameTokens.length) return text;
+        const pattern = new RegExp(`(${assetNameTokens.map((name) => name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|")})`, "g");
+        return text.split(pattern).map((part, partIndex) => (assetNameTokens.includes(part) ? <span key={partIndex} style={{ color: theme.ui.accent }}>{part}</span> : part));
     };
 
     /** 步骤 1 的分镜表格行 */
@@ -285,63 +265,118 @@ export function ScriptDeskStudio({
         const setBeatRefs = (ids: string[]) => patchBeat(beat, { referenceNodeIds: ids });
         const assetRefCandidates = resolveScriptBeatReferenceIds({ character: beat.character, scene: beat.scene }, assets, node.metadata?.scriptAssetOutputs ?? {}, isReferenceOption).filter((id) => !beatRefIds.includes(id));
         const frameNodeId = node.metadata?.scriptBeatFrames?.[beat.id];
+        const frameStatus = SCRIPT_OUTPUT_STATUS[outputStates[`${beat.id}:frame`] || "idle"];
+        const promptsReady = Boolean(beat.imagePrompt && beat.videoPrompt);
         return (
             <div key={beat.id} className="border-b" style={{ borderColor: theme.toolbar.border, background: theme.node.fill, ...(colorMark ? { borderLeft: `3px solid ${colorMark.color}` } : {}) }}>
                 <div className={`grid ${BEAT_GRID} items-center gap-2 px-2 py-1.5`}>
-                    <div className="flex min-w-0 items-center gap-1.5">
-                        <span className="flex size-5 shrink-0 items-center justify-center rounded text-[10px] font-semibold" style={{ background: theme.ui.controlFill, color: theme.node.muted }}>
-                            {index + 1}
-                        </span>
-                        <input className="h-7 min-w-0 flex-1 rounded bg-transparent px-1 text-xs font-medium outline-none placeholder:opacity-35" value={beat.title} placeholder="分镜标题" onChange={(event) => patchBeat(beat, { title: event.target.value })} />
-                    </div>
-                    <textarea className="thin-scrollbar h-8 w-full resize-none rounded border px-2 py-1.5 text-xs leading-5 outline-none placeholder:opacity-35" value={beat.content} placeholder="画面描述：主体、动作、环境、氛围" onChange={(event) => patchBeat(beat, { content: event.target.value })} style={fieldStyle} />
-                    <AutoComplete size="small" value={beat.shotType || ""} options={SHOT_TYPE_OPTIONS} placeholder="景别" onChange={(value) => patchBeat(beat, { shotType: value })} />
+                    <span className="flex size-5 items-center justify-center justify-self-center rounded text-[10px] font-semibold" style={{ background: theme.ui.controlFill, color: theme.node.muted }}>
+                        {index + 1}
+                    </span>
                     <AutoComplete size="small" value={beat.duration || ""} options={DURATION_OPTIONS} placeholder="时长" onChange={(value) => patchBeat(beat, { duration: value })} />
+                    {/* 画面描述：底层把资产名染成主题色 token，上层透明文字 textarea 负责编辑，两层同形并同步滚动 */}
+                    <div className="relative h-8 w-full">
+                        <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden whitespace-pre-wrap break-words rounded border border-transparent px-2 py-1.5 text-xs leading-5">
+                            {beat.content ? renderContentWithAssetTokens(beat.content) : <span className="opacity-35">画面描述：主体、动作、环境、氛围</span>}
+                        </div>
+                        <textarea
+                            className="thin-scrollbar absolute inset-0 h-8 w-full resize-none rounded border bg-transparent px-2 py-1.5 text-xs leading-5 outline-none"
+                            value={beat.content}
+                            aria-label="画面描述"
+                            onChange={(event) => patchBeat(beat, { content: event.target.value })}
+                            onScroll={(event) => {
+                                const underlay = event.currentTarget.previousElementSibling as HTMLElement | null;
+                                if (underlay) {
+                                    underlay.scrollTop = event.currentTarget.scrollTop;
+                                    underlay.scrollLeft = event.currentTarget.scrollLeft;
+                                }
+                            }}
+                            style={{ borderColor: theme.toolbar.border, color: "transparent", caretColor: theme.node.text }}
+                        />
+                    </div>
+                    <AutoComplete size="small" value={beat.shotType || ""} options={SHOT_TYPE_OPTIONS} placeholder="景别" onChange={(value) => patchBeat(beat, { shotType: value })} />
                     <input className="h-8 w-full rounded border px-2 text-xs outline-none placeholder:opacity-35" value={beat.atmosphere || ""} placeholder="如 黄昏暖光" onChange={(event) => patchBeat(beat, { atmosphere: event.target.value })} style={fieldStyle} />
                     <input className="h-8 w-full rounded border px-2 text-xs outline-none placeholder:opacity-35" value={beat.dialogue || ""} placeholder="台词 / 旁白" onChange={(event) => patchBeat(beat, { dialogue: event.target.value })} style={fieldStyle} />
                     <input className="h-8 w-full rounded border px-2 text-xs outline-none placeholder:opacity-35" value={beat.soundEffect || ""} placeholder="如 风声、鼓点" onChange={(event) => patchBeat(beat, { soundEffect: event.target.value })} style={fieldStyle} />
                     <AutoComplete size="small" value={beat.camera || ""} options={CAMERA_OPTIONS} placeholder="机位 / 运镜" onChange={(value) => patchBeat(beat, { camera: value })} />
-                    {renderBeatGenerate(beat, index)}
-                    <div className="flex items-center gap-2 text-[11px]">
-                        <span className="shrink-0 rounded-full px-1.5 py-0.5" style={statusTagStyle(status.color)} title={`视频输出：${status.label}`}>
-                            {status.label}
-                        </span>
-                        <Dropdown
-                            menu={{
-                                items: [
-                                    { key: "up", label: "上移", disabled: index === 0 },
-                                    { key: "down", label: "下移", disabled: index === beats.length - 1 },
-                                    { key: "insert", label: "在下方插入" },
-                                    { type: "divider" as const },
-                                    { key: "none", label: "无标记" },
-                                    ...COLOR_MARKS.map((mark) => ({ key: `mark-${mark.value}`, label: `${mark.label}色标记` })),
-                                ],
-                                onClick: ({ key }) => {
-                                    if (key === "up") onBeatMove(index, -1);
-                                    else if (key === "down") onBeatMove(index, 1);
-                                    else if (key === "insert") onBeatAdd(index, beat.act);
-                                    else if (key === "none") patchBeat(beat, { colorMark: undefined });
-                                    else if (key.startsWith("mark-")) patchBeat(beat, { colorMark: key.slice(5) as NonNullable<CanvasScriptBeat["colorMark"]> });
-                                },
-                            }}
-                        >
-                            <button type="button" className="shrink-0 opacity-45 transition hover:opacity-100">
-                                操作
-                            </button>
-                        </Dropdown>
-                        <Popconfirm title="删除该分镜？" description="其帧图与输出节点的关联将解除，画布上已生成的节点保留。" okText="删除" cancelText="取消" onConfirm={() => onBeatRemove(index)}>
-                            <button type="button" className="shrink-0 opacity-45 transition hover:opacity-100">
-                                删除
-                            </button>
-                        </Popconfirm>
-                        <button type="button" className="shrink-0 opacity-55 transition hover:opacity-100" onClick={() => setExpandedBeatId(expanded ? null : beat.id)} aria-label={expanded ? "收起垫图与归属" : "展开垫图与归属"}>
-                            {expanded ? <ChevronDown className="size-4" /> : <ChevronRight className="size-4" />}
+                    {promptsReady ? (
+                        <button type="button" className="justify-self-start text-xs transition hover:underline" style={{ color: theme.ui.accent }} onClick={() => setPromptBeatId(beat.id)}>
+                            查看提示词
                         </button>
-                    </div>
+                    ) : (
+                        <span className="text-xs opacity-35">待生成提示词</span>
+                    )}
+                    <Dropdown
+                        menu={{
+                            items: [
+                                {
+                                    key: "generate",
+                                    label: "生成",
+                                    disabled: !beat.content.trim() && !beat.title.trim(),
+                                    children: [
+                                        { key: "image", label: "分镜图节点", icon: <ImageIcon className="size-3.5" /> },
+                                        { key: "video", label: "视频节点", icon: <Clapperboard className="size-3.5" /> },
+                                        { key: "comfyui", label: "ComfyUI 节点", icon: <Workflow className="size-3.5" /> },
+                                    ],
+                                },
+                                { key: "expand", label: expanded ? "收起垫图与归属" : "垫图与归属" },
+                                { type: "divider" as const },
+                                { key: "up", label: "上移", disabled: index === 0 },
+                                { key: "down", label: "下移", disabled: index === beats.length - 1 },
+                                { key: "insert", label: "在下方插入" },
+                                { key: "mark", label: "颜色标记", children: [{ key: "none", label: "无标记" }, ...COLOR_MARKS.map((mark) => ({ key: `mark-${mark.value}`, label: `${mark.label}色标记` }))] },
+                                { type: "divider" as const },
+                                { key: "delete", label: "删除", danger: true },
+                            ],
+                            onClick: ({ key }) => {
+                                if (key === "image" || key === "video" || key === "comfyui") onGenerateBeat(beat, index, key);
+                                else if (key === "expand") setExpandedBeatId(expanded ? null : beat.id);
+                                else if (key === "up") onBeatMove(index, -1);
+                                else if (key === "down") onBeatMove(index, 1);
+                                else if (key === "insert") onBeatAdd(index, beat.act);
+                                else if (key === "none") patchBeat(beat, { colorMark: undefined });
+                                else if (key.startsWith("mark-")) patchBeat(beat, { colorMark: key.slice(5) as NonNullable<CanvasScriptBeat["colorMark"]> });
+                                else if (key === "delete") {
+                                    modal.confirm({
+                                        title: "删除该分镜？",
+                                        content: "其帧图与输出节点的关联将解除，画布上已生成的节点保留。",
+                                        okText: "删除",
+                                        cancelText: "取消",
+                                        okButtonProps: { danger: true },
+                                        onOk: () => onBeatRemove(index),
+                                    });
+                                }
+                            },
+                        }}
+                    >
+                        <button type="button" className="grid size-7 place-items-center justify-self-center rounded opacity-45 transition hover:opacity-100" aria-label="分镜操作">
+                            <MoreHorizontal className="size-4" />
+                        </button>
+                    </Dropdown>
                 </div>
                 {expanded ? (
                     <div className="space-y-2 px-3 pb-2.5 pt-1">
-                        <div className="grid max-w-xl grid-cols-3 gap-2">
+                        {frameNodeId || beatRefIds.length || state !== "idle" ? (
+                            <div className="flex items-center gap-1.5 text-[11px]">
+                                {frameNodeId ? (
+                                    <span className="rounded px-1.5 py-0.5" style={statusTagStyle(frameStatus.color)} title={`分镜帧：${frameStatus.label}`}>
+                                        帧图·{frameStatus.label}
+                                    </span>
+                                ) : null}
+                                {beatRefIds.length ? (
+                                    <span className="rounded px-1.5 py-0.5 opacity-70" style={{ background: theme.ui.controlFill }}>
+                                        垫图{beatRefIds.length}
+                                    </span>
+                                ) : null}
+                                {state !== "idle" ? (
+                                    <span className="rounded px-1.5 py-0.5" style={statusTagStyle(status.color)} title={`视频输出：${status.label}`}>
+                                        视频·{status.label}
+                                    </span>
+                                ) : null}
+                            </div>
+                        ) : null}
+                        <div className="grid max-w-2xl grid-cols-4 gap-2">
+                            <input className="h-6 w-full rounded border px-2 text-xs outline-none placeholder:opacity-35" value={beat.title} placeholder="分镜标题" onChange={(event) => patchBeat(beat, { title: event.target.value })} style={fieldStyle} />
                             <AutoComplete size="small" value={beat.character || ""} options={assetOptions("character")} placeholder="角色（引用人物资产）" onChange={(value) => patchBeat(beat, { character: value })} />
                             <AutoComplete size="small" value={beat.scene || ""} options={assetOptions("scene")} placeholder="场景（引用场景资产）" onChange={(value) => patchBeat(beat, { scene: value })} />
                             <Select size="small" value={beat.act?.trim() ? beat.act.trim() : ACT_UNASSIGNED} options={actSelectOptions} onChange={(value) => patchBeat(beat, { act: value === ACT_UNASSIGNED ? undefined : value })} />
@@ -455,8 +490,9 @@ export function ScriptDeskStudio({
         { kind: "prop", label: "道具" },
     ];
 
+    // 全屏工作台用不透明底色，避免背后画布内容微透（对齐 LibTV 全屏脚本页）
     return (
-        <div className="fixed inset-0 z-[220] flex flex-col" style={{ background: theme.node.panel, color: theme.node.text }} data-canvas-no-zoom>
+        <div className="fixed inset-0 z-[220] flex flex-col" style={{ background: theme.node.fill, color: theme.node.text }} data-canvas-no-zoom>
             <div className="flex h-14 shrink-0 items-center justify-between border-b px-5" style={{ borderColor: theme.toolbar.border, background: theme.node.fill }}>
                 <div className="flex items-center gap-3">
                     <div className="text-sm font-semibold">脚本工作台</div>
@@ -499,30 +535,32 @@ export function ScriptDeskStudio({
                 </div>
             </div>
 
-            {/* 三步进度条（对齐 LibTV 脚本生成器） */}
-            <div className="flex shrink-0 items-center gap-2 border-b px-5 py-2" style={{ borderColor: theme.toolbar.border }}>
-                {steps.map((item, order) => {
-                    const active = step === item.index;
-                    const done = item.index === 1 ? beats.length > 0 : item.index === 2 ? assets.length > 0 && missingAssetCount === 0 : synthesizedCount === beats.length && beats.length > 0;
-                    return (
-                        <div key={item.index} className="flex items-center gap-2">
-                            {order > 0 ? <ChevronRight className="size-3.5 opacity-30" /> : null}
-                            <button
-                                type="button"
-                                onClick={() => setStep(item.index)}
-                                className="flex items-center gap-2 rounded-lg px-3 py-1.5 text-xs transition"
-                                style={active ? { background: theme.ui.accentSoft, color: theme.ui.accent } : { color: theme.node.muted }}
-                            >
-                                <span className="grid size-4 place-items-center rounded-full text-[10px] font-semibold" style={done ? { background: "#22c55e", color: "#fff" } : { background: theme.ui.controlFill }}>
-                                    {done ? <Check className="size-3" /> : item.index}
-                                </span>
-                                <span className="font-medium">{item.label}</span>
-                                <span className="opacity-60">{item.count}</span>
-                            </button>
-                        </div>
-                    );
-                })}
-                <span className="ml-auto text-[11px] opacity-40">三步就绪后可批量导出；逐镜生成始终在确认卡片提交后才扣费</span>
+            {/* 三步进度条（对齐 LibTV 脚本生成器）：居中步骤 + 右上角完成度提示 */}
+            <div className="relative flex shrink-0 items-center justify-center border-b px-5 py-2" style={{ borderColor: theme.toolbar.border }}>
+                <div className="flex items-center gap-2">
+                    {steps.map((item, order) => {
+                        const active = step === item.index;
+                        const done = stepDone[item.index - 1];
+                        return (
+                            <div key={item.index} className="flex items-center gap-2">
+                                {order > 0 ? <ChevronRight className="size-3.5 opacity-30" /> : null}
+                                <button
+                                    type="button"
+                                    onClick={() => setStep(item.index)}
+                                    className="flex items-center gap-2 rounded-lg px-3 py-1.5 text-xs transition"
+                                    style={active ? { background: theme.ui.controlFill, color: theme.node.text } : { color: theme.node.muted }}
+                                >
+                                    <span className="grid size-4 place-items-center rounded-full text-[10px] font-semibold" style={done ? { background: theme.node.text, color: theme.canvas.background } : { background: theme.ui.controlFill }}>
+                                        {done ? <Check className="size-3" /> : item.index}
+                                    </span>
+                                    <span className="font-medium">{item.label}</span>
+                                    <span className="opacity-60">{item.count}</span>
+                                </button>
+                            </div>
+                        );
+                    })}
+                </div>
+                <span className="absolute right-5 text-[11px] opacity-40">{doneStepCount}/3 完成后可批量生视频</span>
             </div>
 
             {step === 1 ? (
@@ -543,7 +581,7 @@ export function ScriptDeskStudio({
                         <div className="text-[11px] leading-5 opacity-45">连接上游文本节点可自动读取剧本；AI 拆解按「人物 → 道具 → 场景」提取资产后再拆分镜。</div>
                     </div>
 
-                    <div className="flex min-h-0 flex-col p-4">
+                    <div className="flex min-h-0 min-w-0 flex-col p-4">
                         <div className="mb-2 flex items-center justify-between">
                             <div className="text-sm font-medium opacity-70">分镜表</div>
                             <div className="flex items-center gap-2">
@@ -551,24 +589,21 @@ export function ScriptDeskStudio({
                                 <Button size="small" icon={<Plus className="size-3.5" />} onClick={addAct}>
                                     新增幕
                                 </Button>
-                                <Button size="small" icon={<Plus className="size-3.5" />} onClick={() => onBeatAdd(beats.length - 1)}>
-                                    新增分镜
-                                </Button>
                             </div>
                         </div>
                         <div className="thin-scrollbar min-h-0 flex-1 overflow-auto rounded-xl border" style={{ borderColor: theme.toolbar.border }}>
-                            <div className="min-w-[1420px]">
+                            <div className="min-w-[1120px]">
                                 <div className={`grid ${BEAT_GRID} gap-2 border-b px-2 py-2 text-[11px] opacity-55`} style={{ borderColor: theme.toolbar.border, background: theme.ui.controlFill }}>
-                                    <span>镜号 / 标题</span>
+                                    <span>镜号</span>
+                                    <span>时长</span>
                                     <span>画面描述</span>
                                     <span>景别</span>
-                                    <span>时长</span>
                                     <span>光影氛围</span>
                                     <span>对白·旁白</span>
                                     <span>音效</span>
                                     <span>运镜</span>
-                                    <span>生成</span>
-                                    <span>状态 / 操作</span>
+                                    <span>最终提示词</span>
+                                    <span>操作</span>
                                 </div>
                                 {actGroups.map((group) => (
                                     <div key={group.actTitle}>
@@ -603,8 +638,24 @@ export function ScriptDeskStudio({
                                         {group.beats.map(({ beat, index }) => renderBeatRow(beat, index))}
                                     </div>
                                 ))}
-                                {!beats.length ? <div className="px-4 py-8 text-center text-xs opacity-45">还没有分镜。先在左侧写剧本，再点顶部「AI 拆解」，或直接「新增分镜」。</div> : null}
+                                {!beats.length ? <div className="px-4 py-8 text-center text-xs opacity-45">还没有分镜。先在左侧写剧本，再点顶部「AI 拆解」，或直接「添加镜头」。</div> : null}
                             </div>
+                        </div>
+                        {/* 底部操作栏（对齐 LibTV）：左侧添加镜头，右侧进入下一步 */}
+                        <div className="flex shrink-0 items-center justify-between pt-3">
+                            <button type="button" className="flex items-center gap-1 text-xs opacity-70 transition hover:opacity-100" onClick={() => onBeatAdd(beats.length - 1)}>
+                                <Plus className="size-3.5" />
+                                添加镜头
+                            </button>
+                            <button
+                                type="button"
+                                className="flex items-center gap-1.5 rounded-full px-4 py-2 text-xs font-medium transition hover:opacity-85"
+                                style={{ background: theme.node.text, color: theme.canvas.background }}
+                                onClick={() => setStep(2)}
+                            >
+                                <ArrowRight className="size-3.5" />
+                                下一步：准备资产
+                            </button>
                         </div>
                     </div>
                 </div>
