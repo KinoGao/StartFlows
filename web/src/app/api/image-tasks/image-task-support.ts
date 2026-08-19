@@ -748,8 +748,9 @@ export async function readFetchError(response: Response, fallback: string) {
         return `${fallback}，上游返回了网页错误（HTTP ${response.status}${details ? `，${details}` : ""}），请检查接口路径、鉴权、参考图提交方式或网关状态`;
     }
     try {
-        const payload = JSON.parse(text) as { error?: { message?: string }; message?: string; msg?: string };
-        return payload.msg || payload.message || payload.error?.message || statusText;
+        const payload = JSON.parse(text) as { error?: { message?: string } | string; message?: string; msg?: string };
+        const errorMessage = typeof payload.error === "string" ? payload.error : payload.error?.message;
+        return payload.msg || payload.message || errorMessage || statusText;
     } catch {
         return text.slice(0, 300) || statusText;
     }

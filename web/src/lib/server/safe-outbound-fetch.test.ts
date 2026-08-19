@@ -5,7 +5,9 @@ const mocks = vi.hoisted(() => ({
     fetch: vi.fn(),
     resolve: vi.fn(),
     isPublic: vi.fn(() => true),
+    fakeIpOnly: vi.fn(() => false),
     proxyUrl: vi.fn(() => ""),
+    connectProxy: vi.fn(),
 }));
 vi.mock("undici", () => ({
     Agent: class {
@@ -22,8 +24,9 @@ vi.mock("undici", () => ({
     },
     fetch: mocks.fetch,
 }));
-vi.mock("@/lib/server/outbound-url-security", () => ({ isPublicIpAddress: mocks.isPublic, resolveSafeOutboundTarget: mocks.resolve }));
+vi.mock("@/lib/server/outbound-url-security", () => ({ hasFakeIpOnlyResolution: mocks.fakeIpOnly, isPublicIpAddress: mocks.isPublic, resolveSafeOutboundTarget: mocks.resolve }));
 vi.mock("@/lib/server/proxy-dispatcher", () => ({ resolveServerProxyUrl: mocks.proxyUrl }));
+vi.mock("@/lib/server/proxy-connect-fetch", () => ({ connectProxyFetch: mocks.connectProxy }));
 
 import { fetchSafeOutbound, UnsafeOutboundUrlError } from "./safe-outbound-fetch";
 import { GENERATION_TRANSPORT_TIMEOUT_MS } from "./generation-http-lifecycle";
@@ -34,8 +37,10 @@ describe("safe outbound fetch", () => {
         mocks.agents.length = 0;
         mocks.resolve.mockReset();
         mocks.isPublic.mockReturnValue(true);
+        mocks.fakeIpOnly.mockReturnValue(false);
         mocks.proxyUrl.mockReturnValue("");
         mocks.fetch.mockResolvedValue(Response.json({ ok: true }));
+        mocks.connectProxy.mockResolvedValue(Response.json({ ok: true }));
     });
 
     it("connects to the validated IP while preserving the original Host and TLS identity", async () => {
@@ -78,16 +83,40 @@ describe("safe outbound fetch", () => {
         expect(mocks.agents[0]?.options.connect).toBeTruthy();
     });
 
-    it("keeps the same long response timeout when an outbound proxy is used", async () => {
+    it("routes through the manual CONNECT tunnel with the original URL when an outbound proxy is used", async () => {
         mocks.resolve.mockResolvedValue({ url: new URL("https://provider.example/v1/images/generations"), address: "8.8.8.8", family: 4 });
         mocks.proxyUrl.mockReturnValue("http://proxy.test:8080");
 
         await fetchSafeOutbound("https://provider.example/v1/images/generations");
 
-        expect(mocks.agents[0]?.options).toMatchObject({
-            uri: "http://proxy.test:8080",
-            headersTimeout: GENERATION_TRANSPORT_TIMEOUT_MS,
-            bodyTimeout: GENERATION_TRANSPORT_TIMEOUT_MS,
-        });
+        expect(mocks.connectProxy).toHaveBeenCalledTimes(1);
+        const [targetUrl, , proxyUrl] = mocks.connectProxy.mock.calls[0];
+        expect(String(targetUrl)).toBe("https://provider.example/v1/images/generations");
+        expect(proxyUrl).toBe("http://proxy.test:8080");
+        expect(mocks.fetch).not.toHaveBeenCalled();
+    });
+
+    it("lets the proxy resolve DNS when local resolution is fake-ip intercepted", async () => {
+        mocks.resolve.mockResolvedValue(null);
+        mocks.fakeIpOnly.mockResolvedValue(true);
+        mocks.proxyUrl.mockReturnValue("http://127.0.0.1:7890");
+
+        await fetchSafeOutbound("https://provider.example/v1/images/generations", { method: "POST", body: "{}" });
+
+        expect(mocks.connectProxy).toHaveBeenCalledTimes(1);
+        const [targetUrl, init, proxyUrl] = mocks.connectProxy.mock.calls[0];
+        expect(String(targetUrl)).toBe("https://provider.example/v1/images/generations");
+        expect(init?.method).toBe("POST");
+        expect(proxyUrl).toBe("http://127.0.0.1:7890");
+    });
+
+    it("still rejects unsafe resolution when no proxy is configured or the answers are not fake-ip", async () => {
+        mocks.resolve.mockResolvedValue(null);
+        await expect(fetchSafeOutbound("https://provider.example/v1/images")).rejects.toBeInstanceOf(UnsafeOutboundUrlError);
+
+        mocks.proxyUrl.mockReturnValue("http://127.0.0.1:7890");
+        mocks.fakeIpOnly.mockResolvedValue(false);
+        await expect(fetchSafeOutbound("https://provider.example/v1/images")).rejects.toBeInstanceOf(UnsafeOutboundUrlError);
+        expect(mocks.connectProxy).not.toHaveBeenCalled();
     });
 });

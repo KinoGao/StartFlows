@@ -1,6 +1,8 @@
 import { lookup } from "node:dns/promises";
 import { BlockList, isIP } from "node:net";
 
+import { resolveServerProxyUrl } from "@/lib/server/proxy-dispatcher";
+
 const BLOCKED_HOSTNAMES = ["metadata.google.internal", "metadata.goog", "metadata.azure.com", "instance-data"];
 const NON_PUBLIC_IPV4_ADDRESSES = addressBlockList([
     ["0.0.0.0", 8, "ipv4"],
@@ -45,6 +47,8 @@ const PRIVATE_ALLOWLISTABLE_IPV6_ADDRESSES = addressBlockList([
     ["fc00::", 7, "ipv6"],
     ["fec0::", 10, "ipv6"],
 ]);
+// RFC 2544 基准测试段永不可路由，本地 DNS 返回该段即代理工具的 fake-ip 应答（Clash 默认池）
+const FAKE_IP_IPV4_ADDRESSES = addressBlockList([["198.18.0.0", 15, "ipv4"]]);
 
 export type SafeOutboundTarget = {
     url: URL;
@@ -53,17 +57,9 @@ export type SafeOutboundTarget = {
 };
 
 export async function resolveSafeOutboundTarget(value: string | URL, options?: { allowCredentials?: boolean }): Promise<SafeOutboundTarget | null> {
-    let url: URL;
-    try {
-        url = value instanceof URL ? new URL(value) : new URL(value);
-    } catch {
-        return null;
-    }
-    if (url.protocol !== "http:" && url.protocol !== "https:") return null;
-    if (!options?.allowCredentials && (url.username || url.password)) return null;
-
-    const hostname = normalizeHostname(url.hostname);
-    if (!hostname || isBlockedHostname(hostname)) return null;
+    const parsed = parseOutboundUrl(value, options);
+    if (!parsed) return null;
+    const { url, hostname } = parsed;
     const privateAllowed = privateUpstreamHostAllowed(hostname);
     if ((hostname === "localhost" || hostname.endsWith(".localhost")) && !privateAllowed) return null;
     const directFamily = isIP(hostname);
@@ -79,7 +75,40 @@ export async function resolveSafeOutboundTarget(value: string | URL, options?: {
 }
 
 export async function isSafeOutboundUrl(value: string, options?: { allowCredentials?: boolean }) {
-    return Boolean(await resolveSafeOutboundTarget(value, options));
+    if (await resolveSafeOutboundTarget(value, options)) return true;
+    // fake-ip DNS 下本地只能解析到保留地址；配置了系统代理时由代理服务器解析真实 DNS
+    return Boolean(resolveServerProxyUrl()) && (await hasFakeIpOnlyResolution(value, options));
+}
+
+// fake-ip 模式（Clash 等）会把所有域名解析到 198.18.0.0/15 保留段，本地无法钉住真实 IP；
+// 仅在全部应答均非公网且带有 fake-ip 标记时认定为可识别的 fake-ip 场景，真实内网应答依旧拒绝。
+export async function hasFakeIpOnlyResolution(value: string | URL, options?: { allowCredentials?: boolean }): Promise<boolean> {
+    const parsed = parseOutboundUrl(value, options);
+    if (!parsed) return false;
+    const { hostname } = parsed;
+    if (hostname === "localhost" || hostname.endsWith(".localhost")) return false;
+    if (isIP(hostname)) return false;
+    try {
+        const addresses = dedupeAddresses(await lookup(hostname, { all: true, verbatim: true }));
+        if (!addresses.length || addresses.some((item) => isPublicIpAddress(item.address))) return false;
+        return addresses.some((item) => item.family === 4 && FAKE_IP_IPV4_ADDRESSES.check(item.address, "ipv4"));
+    } catch {
+        return false;
+    }
+}
+
+function parseOutboundUrl(value: string | URL, options?: { allowCredentials?: boolean }) {
+    let url: URL;
+    try {
+        url = value instanceof URL ? new URL(value) : new URL(value);
+    } catch {
+        return null;
+    }
+    if (url.protocol !== "http:" && url.protocol !== "https:") return null;
+    if (!options?.allowCredentials && (url.username || url.password)) return null;
+    const hostname = normalizeHostname(url.hostname);
+    if (!hostname || isBlockedHostname(hostname)) return null;
+    return { url, hostname };
 }
 
 export function isPublicIpAddress(address: string) {

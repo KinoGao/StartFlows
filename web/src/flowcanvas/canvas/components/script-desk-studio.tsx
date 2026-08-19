@@ -1,6 +1,6 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { App, AutoComplete, Button, Checkbox, Dropdown, Modal, Select } from "antd";
-import { ArrowRight, Check, ChevronRight, Clapperboard, Download, Image as ImageIcon, ListOrdered, MoreHorizontal, Plus, Sparkles, Upload, Workflow, X } from "lucide-react";
+import { ArrowRight, Clapperboard, Download, FileText, Image as ImageIcon, ListOrdered, MoreHorizontal, Plus, Sparkles, Upload, Workflow, X } from "lucide-react";
 
 import type { canvasThemes } from "@/flowcanvas/lib/canvas-theme";
 import { buildScriptBeats } from "../utils/canvas-script-beats";
@@ -44,7 +44,34 @@ const COLOR_MARKS: Array<{ value: NonNullable<CanvasScriptBeat["colorMark"]>; la
 type ExportTarget = "video" | "comfyui" | "image";
 
 // 分镜表格列（对齐 LibTV）：镜号 / 时长 / 画面描述 / 景别 / 光影氛围 / 对白·旁白 / 音效 / 运镜 / 最终提示词 / 操作
-const BEAT_GRID = "grid-cols-[48px_64px_minmax(180px,1fr)_90px_120px_140px_110px_110px_110px_48px]";
+const BEAT_GRID = "grid-cols-[52px_60px_minmax(240px,1.5fr)_84px_minmax(110px,1fr)_minmax(170px,1.2fr)_minmax(120px,1fr)_minmax(100px,0.9fr)_92px_48px]";
+
+/** 无边框纯文本单元格编辑器（对齐 LibTV 分镜表）：底层把资产名染成主题色 token，上层透明 textarea 负责编辑，高度随内容自适应 */
+function BeatCellTextarea({ value, placeholder = "+", onChange, renderTokens, theme, ariaLabel }: { value: string; placeholder?: string; onChange: (value: string) => void; renderTokens: (text: string) => ReactNode; theme: Theme; ariaLabel: string }) {
+    return (
+        <div className="relative w-full">
+            <div aria-hidden className="pointer-events-none max-h-[84px] overflow-hidden whitespace-pre-wrap break-words px-1 py-0.5 text-xs leading-5" style={{ color: theme.node.label }}>
+                {value ? renderTokens(value) : <span style={{ color: theme.node.faint }}>{placeholder}</span>}
+                {value.endsWith("\n") ? <br /> : null}
+            </div>
+            <textarea
+                className="thin-scrollbar absolute inset-0 max-h-[84px] w-full resize-none bg-transparent px-1 py-0.5 text-xs leading-5 outline-none"
+                value={value}
+                rows={1}
+                aria-label={ariaLabel}
+                onChange={(event) => onChange(event.target.value)}
+                onScroll={(event) => {
+                    const underlay = event.currentTarget.previousElementSibling as HTMLElement | null;
+                    if (underlay) {
+                        underlay.scrollTop = event.currentTarget.scrollTop;
+                        underlay.scrollLeft = event.currentTarget.scrollLeft;
+                    }
+                }}
+                style={{ color: "transparent", caretColor: theme.node.text }}
+            />
+        </div>
+    );
+}
 
 /**
  * 脚本节点全屏工作台（对齐 LibTV 脚本生成器的三步引导流水线）：
@@ -109,6 +136,8 @@ export function ScriptDeskStudio({
     const fieldStyle = { background: theme.node.fill, borderColor: theme.toolbar.border, color: theme.node.text };
     const { modal } = App.useApp();
     const [step, setStep] = useState<1 | 2 | 3>(1);
+    // 剧本正文面板默认收起（对齐 LibTV 默认全宽分镜表），点工具栏「剧本」才展开
+    const [showScriptPanel, setShowScriptPanel] = useState(false);
     const [expandedBeatId, setExpandedBeatId] = useState<string | null>(null);
     const [actTitleDrafts, setActTitleDrafts] = useState<Record<string, string>>({});
     const [synthPendingId, setSynthPendingId] = useState<string | null>(null);
@@ -247,12 +276,15 @@ export function ScriptDeskStudio({
     const stepDone = [beatsReady, assets.length > 0 && missingAssetCount === 0, beats.length > 0 && synthesizedCount === beats.length];
     const doneStepCount = stepDone.filter(Boolean).length;
 
-    /** 画面描述中的角色/场景/道具名渲染成主题色 token（对齐 LibTV 脚本表格） */
-    const renderContentWithAssetTokens = (text: string) => {
-        if (!assetNameTokens.length) return text;
-        const pattern = new RegExp(`(${assetNameTokens.map((name) => name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|")})`, "g");
-        return text.split(pattern).map((part, partIndex) => (assetNameTokens.includes(part) ? <span key={partIndex} style={{ color: theme.ui.accent }}>{part}</span> : part));
+    /** 把文本中的角色/场景/道具名（可追加旁白等额外 token）渲染成主题色 token（对齐 LibTV 脚本表格） */
+    const renderWithTokens = (text: string, extraTokens: string[] = []) => {
+        const tokens = [...assetNameTokens, ...extraTokens];
+        if (!tokens.length) return text;
+        const pattern = new RegExp(`(${tokens.map((name) => name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|")})`, "g");
+        return text.split(pattern).map((part, partIndex) => (tokens.includes(part) ? <span key={partIndex} style={{ color: theme.ui.accent }}>{part}</span> : part));
     };
+    const renderContentWithAssetTokens = (text: string) => renderWithTokens(text);
+    const renderDialogueTokens = (text: string) => renderWithTokens(text, ["[旁白]", "旁白：", "旁白:"]);
 
     /** 步骤 1 的分镜表格行 */
     const renderBeatRow = (beat: CanvasScriptBeat, index: number) => {
@@ -268,43 +300,36 @@ export function ScriptDeskStudio({
         const frameStatus = SCRIPT_OUTPUT_STATUS[outputStates[`${beat.id}:frame`] || "idle"];
         const promptsReady = Boolean(beat.imagePrompt && beat.videoPrompt);
         return (
-            <div key={beat.id} className="border-b" style={{ borderColor: theme.toolbar.border, background: theme.node.fill, ...(colorMark ? { borderLeft: `3px solid ${colorMark.color}` } : {}) }}>
-                <div className={`grid ${BEAT_GRID} items-center gap-2 px-2 py-1.5`}>
-                    <span className="flex size-5 items-center justify-center justify-self-center rounded text-[10px] font-semibold" style={{ background: theme.ui.controlFill, color: theme.node.muted }}>
+            <div
+                key={beat.id}
+                className="border-b"
+                style={{ borderColor: theme.toolbar.border, ...(colorMark ? { borderLeft: `3px solid ${colorMark.color}` } : {}) }}
+                onMouseEnter={(event) => {
+                    event.currentTarget.style.background = theme.ui.controlFill;
+                }}
+                onMouseLeave={(event) => {
+                    event.currentTarget.style.background = "";
+                }}
+            >
+                <div className={`grid ${BEAT_GRID} items-center gap-x-3 px-3 py-2.5`}>
+                    <span className="text-center text-xs" style={{ color: theme.node.muted }}>
                         {index + 1}
                     </span>
-                    <AutoComplete size="small" value={beat.duration || ""} options={DURATION_OPTIONS} placeholder="时长" onChange={(value) => patchBeat(beat, { duration: value })} />
-                    {/* 画面描述：底层把资产名染成主题色 token，上层透明文字 textarea 负责编辑，两层同形并同步滚动 */}
-                    <div className="relative h-8 w-full">
-                        <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden whitespace-pre-wrap break-words rounded border border-transparent px-2 py-1.5 text-xs leading-5">
-                            {beat.content ? renderContentWithAssetTokens(beat.content) : <span className="opacity-35">画面描述：主体、动作、环境、氛围</span>}
-                        </div>
-                        <textarea
-                            className="thin-scrollbar absolute inset-0 h-8 w-full resize-none rounded border bg-transparent px-2 py-1.5 text-xs leading-5 outline-none"
-                            value={beat.content}
-                            aria-label="画面描述"
-                            onChange={(event) => patchBeat(beat, { content: event.target.value })}
-                            onScroll={(event) => {
-                                const underlay = event.currentTarget.previousElementSibling as HTMLElement | null;
-                                if (underlay) {
-                                    underlay.scrollTop = event.currentTarget.scrollTop;
-                                    underlay.scrollLeft = event.currentTarget.scrollLeft;
-                                }
-                            }}
-                            style={{ borderColor: theme.toolbar.border, color: "transparent", caretColor: theme.node.text }}
-                        />
-                    </div>
-                    <AutoComplete size="small" value={beat.shotType || ""} options={SHOT_TYPE_OPTIONS} placeholder="景别" onChange={(value) => patchBeat(beat, { shotType: value })} />
-                    <input className="h-8 w-full rounded border px-2 text-xs outline-none placeholder:opacity-35" value={beat.atmosphere || ""} placeholder="如 黄昏暖光" onChange={(event) => patchBeat(beat, { atmosphere: event.target.value })} style={fieldStyle} />
-                    <input className="h-8 w-full rounded border px-2 text-xs outline-none placeholder:opacity-35" value={beat.dialogue || ""} placeholder="台词 / 旁白" onChange={(event) => patchBeat(beat, { dialogue: event.target.value })} style={fieldStyle} />
-                    <input className="h-8 w-full rounded border px-2 text-xs outline-none placeholder:opacity-35" value={beat.soundEffect || ""} placeholder="如 风声、鼓点" onChange={(event) => patchBeat(beat, { soundEffect: event.target.value })} style={fieldStyle} />
-                    <AutoComplete size="small" value={beat.camera || ""} options={CAMERA_OPTIONS} placeholder="机位 / 运镜" onChange={(value) => patchBeat(beat, { camera: value })} />
+                    <AutoComplete size="small" variant="borderless" value={beat.duration || ""} options={DURATION_OPTIONS} placeholder="+" className="[&_input]:!text-center" onChange={(value) => patchBeat(beat, { duration: value })} />
+                    <BeatCellTextarea value={beat.content} ariaLabel="画面描述" theme={theme} renderTokens={renderContentWithAssetTokens} onChange={(value) => patchBeat(beat, { content: value })} />
+                    <AutoComplete size="small" variant="borderless" value={beat.shotType || ""} options={SHOT_TYPE_OPTIONS} placeholder="+" className="[&_input]:!text-center" onChange={(value) => patchBeat(beat, { shotType: value })} />
+                    <BeatCellTextarea value={beat.atmosphere || ""} ariaLabel="光影氛围" theme={theme} renderTokens={renderContentWithAssetTokens} onChange={(value) => patchBeat(beat, { atmosphere: value })} />
+                    <BeatCellTextarea value={beat.dialogue || ""} ariaLabel="对白旁白" theme={theme} renderTokens={renderDialogueTokens} onChange={(value) => patchBeat(beat, { dialogue: value })} />
+                    <BeatCellTextarea value={beat.soundEffect || ""} ariaLabel="音效" theme={theme} renderTokens={renderContentWithAssetTokens} onChange={(value) => patchBeat(beat, { soundEffect: value })} />
+                    <AutoComplete size="small" variant="borderless" value={beat.camera || ""} options={CAMERA_OPTIONS} placeholder="+" onChange={(value) => patchBeat(beat, { camera: value })} />
                     {promptsReady ? (
-                        <button type="button" className="justify-self-start text-xs transition hover:underline" style={{ color: theme.ui.accent }} onClick={() => setPromptBeatId(beat.id)}>
+                        <button type="button" className="justify-self-center text-xs transition hover:underline" style={{ color: theme.node.text }} onClick={() => setPromptBeatId(beat.id)}>
                             查看提示词
                         </button>
                     ) : (
-                        <span className="text-xs opacity-35">待生成提示词</span>
+                        <span className="justify-self-center text-xs" style={{ color: theme.node.faint }}>
+                            待生成提示词
+                        </span>
                     )}
                     <Dropdown
                         menu={{
@@ -493,20 +518,20 @@ export function ScriptDeskStudio({
     // 全屏工作台用不透明底色，避免背后画布内容微透（对齐 LibTV 全屏脚本页）
     return (
         <div className="fixed inset-0 z-[220] flex flex-col" style={{ background: theme.node.fill, color: theme.node.text }} data-canvas-no-zoom>
-            <div className="flex h-14 shrink-0 items-center justify-between border-b px-5" style={{ borderColor: theme.toolbar.border, background: theme.node.fill }}>
-                <div className="flex items-center gap-3">
-                    <div className="text-sm font-semibold">脚本工作台</div>
-                    <div className="text-xs opacity-45">{node.title || "脚本"}</div>
-                </div>
-                <div className="flex items-center gap-2">
-                    <Button type="primary" icon={<Sparkles className="size-4" />} onClick={onAiAnalyze} disabled={!body.trim()}>
+            {/* 顶栏（对齐 LibTV 单行布局）：左侧工具按钮，中间三步进度条，右侧完成度 + 关闭 */}
+            <div className="relative flex h-16 shrink-0 items-center justify-between border-b px-6" style={{ borderColor: theme.toolbar.border, background: theme.node.fill }}>
+                <div className="relative z-10 flex items-center gap-1">
+                    <Button type="text" size="small" icon={<FileText className="size-4" />} onClick={() => setShowScriptPanel((visible) => !visible)} style={showScriptPanel ? { color: theme.node.text, background: theme.ui.controlFill } : undefined}>
+                        剧本
+                    </Button>
+                    <Button type="text" size="small" icon={<Sparkles className="size-4" />} onClick={onAiAnalyze} disabled={!body.trim()}>
                         AI 拆解
                     </Button>
-                    <Button icon={<ListOrdered className="size-4" />} onClick={onReparse} disabled={!canReparse} title="按正文里的幕/场/镜编号本地重建分镜表，不消耗模型">
+                    <Button type="text" size="small" icon={<ListOrdered className="size-4" />} onClick={onReparse} disabled={!canReparse} title="按正文里的幕/场/镜编号本地重建分镜表，不消耗模型">
                         按正文重拆
                     </Button>
                     {hasUpstreamText ? (
-                        <Button icon={<Upload className="size-4" />} onClick={onImportUpstream}>
+                        <Button type="text" size="small" icon={<Upload className="size-4" />} onClick={onImportUpstream}>
                             从上游导入
                         </Button>
                     ) : null}
@@ -529,71 +554,70 @@ export function ScriptDeskStudio({
                         }}
                         disabled={!beats.length}
                     >
-                        <Button icon={<Download className="size-4" />}>导出</Button>
+                        <Button type="text" size="small" icon={<Download className="size-4" />}>
+                            导出
+                        </Button>
                     </Dropdown>
-                    <Button type="text" shape="circle" icon={<X className="size-4" />} onClick={onClose} aria-label="关闭脚本工作台" />
                 </div>
-            </div>
-
-            {/* 三步进度条（对齐 LibTV 脚本生成器）：居中步骤 + 右上角完成度提示 */}
-            <div className="relative flex shrink-0 items-center justify-center border-b px-5 py-2" style={{ borderColor: theme.toolbar.border }}>
-                <div className="flex items-center gap-2">
+                <div className="absolute left-1/2 top-1/2 flex -translate-x-1/2 -translate-y-1/2 items-center">
                     {steps.map((item, order) => {
                         const active = step === item.index;
                         const done = stepDone[item.index - 1];
                         return (
-                            <div key={item.index} className="flex items-center gap-2">
-                                {order > 0 ? <ChevronRight className="size-3.5 opacity-30" /> : null}
-                                <button
-                                    type="button"
-                                    onClick={() => setStep(item.index)}
-                                    className="flex items-center gap-2 rounded-lg px-3 py-1.5 text-xs transition"
-                                    style={active ? { background: theme.ui.controlFill, color: theme.node.text } : { color: theme.node.muted }}
-                                >
-                                    <span className="grid size-4 place-items-center rounded-full text-[10px] font-semibold" style={done ? { background: theme.node.text, color: theme.canvas.background } : { background: theme.ui.controlFill }}>
-                                        {done ? <Check className="size-3" /> : item.index}
+                            <div key={item.index} className="flex items-center">
+                                {order > 0 ? <span className="mx-5 h-px w-16 shrink-0" style={{ background: theme.toolbar.border }} /> : null}
+                                <button type="button" onClick={() => setStep(item.index)} className="flex items-center gap-2.5 rounded-lg px-3 py-1.5 text-left transition" style={active ? { background: theme.ui.controlFill } : undefined}>
+                                    <span
+                                        className="grid size-7 shrink-0 place-items-center rounded-full text-xs font-semibold"
+                                        style={done ? { background: theme.node.text, color: theme.canvas.background } : { border: `1px solid ${theme.node.faint}`, color: theme.node.muted }}
+                                    >
+                                        {item.index}
                                     </span>
-                                    <span className="font-medium">{item.label}</span>
-                                    <span className="opacity-60">{item.count}</span>
+                                    <span className="flex flex-col leading-tight">
+                                        <span className="text-[13px] font-medium" style={{ color: active || done ? theme.node.text : theme.node.muted }}>
+                                            {item.label}
+                                        </span>
+                                        <span className="text-[11px]" style={{ color: theme.node.faint }}>
+                                            {item.count}
+                                        </span>
+                                    </span>
                                 </button>
                             </div>
                         );
                     })}
                 </div>
-                <span className="absolute right-5 text-[11px] opacity-40">{doneStepCount}/3 完成后可批量生视频</span>
+                <div className="relative z-10 flex items-center gap-3">
+                    <span className="text-xs font-medium" style={{ color: theme.node.muted }}>
+                        {doneStepCount}/3 完成后可批量生视频
+                    </span>
+                    <Button type="text" shape="circle" size="small" icon={<X className="size-4" />} onClick={onClose} aria-label="关闭脚本工作台" />
+                </div>
             </div>
 
             {step === 1 ? (
-                <div className="grid min-h-0 flex-1 grid-cols-[360px_1fr] gap-0">
-                    <div className="thin-scrollbar flex min-h-0 flex-col gap-3 overflow-y-auto border-r p-4" style={{ borderColor: theme.toolbar.border }}>
-                        <label className="nodrag nopan block min-w-0" onMouseDownCapture={stopCanvasPanelInteraction} onPointerDownCapture={stopCanvasPanelInteraction} onClickCapture={(event) => event.stopPropagation()}>
-                            <span className="mb-1 block text-xs opacity-55">标题</span>
-                            <input className="h-9 w-full rounded-lg border px-3 text-sm outline-none placeholder:opacity-35" value={node.metadata?.scriptTitle || node.title || ""} placeholder="短片标题 / 分镜脚本名" onChange={(event) => onChange({ scriptTitle: event.target.value })} style={fieldStyle} />
-                        </label>
-                        <label className="nodrag nopan block min-w-0" onMouseDownCapture={stopCanvasPanelInteraction} onPointerDownCapture={stopCanvasPanelInteraction} onClickCapture={(event) => event.stopPropagation()}>
-                            <span className="mb-1 block text-xs opacity-55">一句话梗概</span>
-                            <input className="h-9 w-full rounded-lg border px-3 text-sm outline-none placeholder:opacity-35" value={node.metadata?.scriptLogline || ""} placeholder="角色、目标、冲突和转折" onChange={(event) => onChange({ scriptLogline: event.target.value })} style={fieldStyle} />
-                        </label>
-                        <label className="nodrag nopan flex min-h-0 flex-1 flex-col" onMouseDownCapture={stopCanvasPanelInteraction} onPointerDownCapture={stopCanvasPanelInteraction} onClickCapture={(event) => event.stopPropagation()}>
-                            <span className="mb-1 block text-xs opacity-55">剧本正文</span>
-                            <textarea className="thin-scrollbar min-h-40 w-full flex-1 resize-none rounded-lg border px-3 py-2 text-sm leading-6 outline-none placeholder:opacity-35" value={body} placeholder="按幕、段落或镜头写下脚本内容" onChange={(event) => updateBody(event.target.value)} style={fieldStyle} />
-                        </label>
-                        <div className="text-[11px] leading-5 opacity-45">连接上游文本节点可自动读取剧本；AI 拆解按「人物 → 道具 → 场景」提取资产后再拆分镜。</div>
-                    </div>
-
-                    <div className="flex min-h-0 min-w-0 flex-col p-4">
-                        <div className="mb-2 flex items-center justify-between">
-                            <div className="text-sm font-medium opacity-70">分镜表</div>
-                            <div className="flex items-center gap-2">
-                                <span className="text-xs opacity-45">{acts.length} 幕 · {beats.length} 镜 · 帧图 {frameReadyCount}</span>
-                                <Button size="small" icon={<Plus className="size-3.5" />} onClick={addAct}>
-                                    新增幕
-                                </Button>
-                            </div>
+                <div className="flex min-h-0 flex-1">
+                    {showScriptPanel ? (
+                        <div className="thin-scrollbar flex w-[340px] shrink-0 flex-col gap-3 overflow-y-auto border-r p-4" style={{ borderColor: theme.toolbar.border }}>
+                            <label className="nodrag nopan block min-w-0" onMouseDownCapture={stopCanvasPanelInteraction} onPointerDownCapture={stopCanvasPanelInteraction} onClickCapture={(event) => event.stopPropagation()}>
+                                <span className="mb-1 block text-xs opacity-55">标题</span>
+                                <input className="h-9 w-full rounded-lg border px-3 text-sm outline-none placeholder:opacity-35" value={node.metadata?.scriptTitle || node.title || ""} placeholder="短片标题 / 分镜脚本名" onChange={(event) => onChange({ scriptTitle: event.target.value })} style={fieldStyle} />
+                            </label>
+                            <label className="nodrag nopan block min-w-0" onMouseDownCapture={stopCanvasPanelInteraction} onPointerDownCapture={stopCanvasPanelInteraction} onClickCapture={(event) => event.stopPropagation()}>
+                                <span className="mb-1 block text-xs opacity-55">一句话梗概</span>
+                                <input className="h-9 w-full rounded-lg border px-3 text-sm outline-none placeholder:opacity-35" value={node.metadata?.scriptLogline || ""} placeholder="角色、目标、冲突和转折" onChange={(event) => onChange({ scriptLogline: event.target.value })} style={fieldStyle} />
+                            </label>
+                            <label className="nodrag nopan flex min-h-0 flex-1 flex-col" onMouseDownCapture={stopCanvasPanelInteraction} onPointerDownCapture={stopCanvasPanelInteraction} onClickCapture={(event) => event.stopPropagation()}>
+                                <span className="mb-1 block text-xs opacity-55">剧本正文</span>
+                                <textarea className="thin-scrollbar min-h-40 w-full flex-1 resize-none rounded-lg border px-3 py-2 text-sm leading-6 outline-none placeholder:opacity-35" value={body} placeholder="按幕、段落或镜头写下脚本内容" onChange={(event) => updateBody(event.target.value)} style={fieldStyle} />
+                            </label>
+                            <div className="text-[11px] leading-5 opacity-45">连接上游文本节点可自动读取剧本；AI 拆解按「人物 → 道具 → 场景」提取资产后再拆分镜。</div>
                         </div>
-                        <div className="thin-scrollbar min-h-0 flex-1 overflow-auto rounded-xl border" style={{ borderColor: theme.toolbar.border }}>
-                            <div className="min-w-[1120px]">
-                                <div className={`grid ${BEAT_GRID} gap-2 border-b px-2 py-2 text-[11px] opacity-55`} style={{ borderColor: theme.toolbar.border, background: theme.ui.controlFill }}>
+                    ) : null}
+
+                    <div className="flex min-h-0 min-w-0 flex-1 flex-col px-6 pb-4 pt-3">
+                        <div className="thin-scrollbar min-h-0 flex-1 overflow-auto rounded-lg border" style={{ borderColor: theme.toolbar.border }}>
+                            <div className="min-w-[1180px]">
+                                <div className={`grid ${BEAT_GRID} gap-x-3 border-b px-3 py-2.5 text-[11px]`} style={{ borderColor: theme.toolbar.border, color: theme.node.faint }}>
                                     <span>镜号</span>
                                     <span>时长</span>
                                     <span>画面描述</span>
@@ -638,15 +662,24 @@ export function ScriptDeskStudio({
                                         {group.beats.map(({ beat, index }) => renderBeatRow(beat, index))}
                                     </div>
                                 ))}
-                                {!beats.length ? <div className="px-4 py-8 text-center text-xs opacity-45">还没有分镜。先在左侧写剧本，再点顶部「AI 拆解」，或直接「添加镜头」。</div> : null}
+                                {!beats.length ? <div className="px-4 py-8 text-center text-xs opacity-45">还没有分镜。点顶部「剧本」写正文后用「AI 拆解」，或直接「添加镜头」。</div> : null}
                             </div>
                         </div>
                         {/* 底部操作栏（对齐 LibTV）：左侧添加镜头，右侧进入下一步 */}
                         <div className="flex shrink-0 items-center justify-between pt-3">
-                            <button type="button" className="flex items-center gap-1 text-xs opacity-70 transition hover:opacity-100" onClick={() => onBeatAdd(beats.length - 1)}>
-                                <Plus className="size-3.5" />
-                                添加镜头
-                            </button>
+                            <div className="flex items-center gap-4">
+                                <button type="button" className="flex items-center gap-1 text-xs font-medium opacity-80 transition hover:opacity-100" onClick={() => onBeatAdd(beats.length - 1)}>
+                                    <Plus className="size-3.5" />
+                                    添加镜头
+                                </button>
+                                <button type="button" className="flex items-center gap-1 text-xs opacity-45 transition hover:opacity-100" onClick={addAct}>
+                                    <Plus className="size-3.5" />
+                                    新增幕
+                                </button>
+                                <span className="text-[11px] opacity-35">
+                                    {acts.length} 幕 · {beats.length} 镜 · 帧图 {frameReadyCount}
+                                </span>
+                            </div>
                             <button
                                 type="button"
                                 className="flex items-center gap-1.5 rounded-full px-4 py-2 text-xs font-medium transition hover:opacity-85"

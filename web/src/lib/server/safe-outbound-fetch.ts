@@ -3,7 +3,7 @@ import { Agent, fetch as undiciFetch, type Dispatcher } from "undici";
 import { GENERATION_TRANSPORT_TIMEOUT_MS } from "@/lib/server/generation-http-lifecycle";
 import { connectProxyFetch } from "@/lib/server/proxy-connect-fetch";
 import { resolveServerProxyUrl } from "@/lib/server/proxy-dispatcher";
-import { isPublicIpAddress, resolveSafeOutboundTarget } from "@/lib/server/outbound-url-security";
+import { hasFakeIpOnlyResolution, isPublicIpAddress, resolveSafeOutboundTarget } from "@/lib/server/outbound-url-security";
 import { toUndiciRequestBody } from "@/lib/server/undici-request-body";
 
 type CachedDispatcher = { dispatcher: Dispatcher; lastUsedAt: number };
@@ -54,7 +54,7 @@ export async function fetchSafeOutbound(input: string | URL, init: RequestInit =
 
 async function fetchPinned(input: URL, init: RequestInit, options?: { allowCredentials?: boolean }) {
     const target = await resolveSafeOutboundTarget(input, options);
-    if (!target) throw new UnsafeOutboundUrlError();
+    if (!target) return fetchViaProxyWhenFakeIp(input, init, options);
 
     const headers = new Headers(init.headers);
     const proxyUrl = isPublicIpAddress(target.address) ? resolveServerProxyUrl() : "";
@@ -63,6 +63,16 @@ async function fetchPinned(input: URL, init: RequestInit, options?: { allowCrede
     if (proxyUrl) return connectProxyFetch(target.url, { method: init.method, headers, body, signal: init.signal }, proxyUrl);
     const dispatcher = dispatcherFor(target.url, target.address, target.family);
     return (await undiciFetch(target.url, { ...init, body, headers, dispatcher } as import("undici").RequestInit & { dispatcher: Dispatcher })) as unknown as Response;
+}
+
+// fake-ip DNS 环境（Clash 等）本地解析只得到保留地址，无法钉住真实 IP；
+// 配置了系统代理时代理服务器会解析真实 DNS，仅在这种可识别场景下放行走代理隧道。
+async function fetchViaProxyWhenFakeIp(input: URL, init: RequestInit, options?: { allowCredentials?: boolean }) {
+    const proxyUrl = resolveServerProxyUrl();
+    if (!proxyUrl || !(await hasFakeIpOnlyResolution(input, options))) throw new UnsafeOutboundUrlError();
+    const headers = new Headers(init.headers);
+    const body = await toUndiciRequestBody(init.body);
+    return connectProxyFetch(input, { method: init.method, headers, body, signal: init.signal }, proxyUrl);
 }
 
 function redirectedRequestInit(currentUrl: URL, nextUrl: URL, status: number, init: RequestInit): RequestInit {

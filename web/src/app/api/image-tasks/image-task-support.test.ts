@@ -15,6 +15,7 @@ import {
     parseImagePayloadOrPoll,
     parseImagePayloadCompat,
     parseImageQueryJson,
+    readFetchError,
     resolveRequestSize,
     resolveResultSize,
     sanitizeConfigs,
@@ -242,5 +243,24 @@ describe("GlobalAiOpc image task paths", () => {
 
         expect(shouldFallbackToJsonImageEdit(422, message)).toBe(true);
         expect(shouldRetryJsonImageEditPayload(422, message)).toBe(true);
+    });
+});
+
+
+describe("readFetchError", () => {
+    it("surfaces string error fields from proxy or upstream responses", async () => {
+        const response = new Response(JSON.stringify({ error: "接口地址不允许访问内网或保留地址" }), { status: 400 });
+
+        await expect(readFetchError(response, "图片生成失败")).resolves.toBe("接口地址不允许访问内网或保留地址");
+    });
+
+    it("keeps supporting OpenAI-style nested error objects and msg fields", async () => {
+        await expect(readFetchError(new Response(JSON.stringify({ error: { message: "model overloaded" } }), { status: 429 }), "图片生成失败")).resolves.toBe("model overloaded");
+        await expect(readFetchError(new Response(JSON.stringify({ msg: "配额不足" }), { status: 402 }), "图片生成失败")).resolves.toBe("配额不足");
+    });
+
+    it("falls back to the status text when the payload has no readable message", async () => {
+        await expect(readFetchError(new Response(JSON.stringify({ detail: "oops" }), { status: 500 }), "图片生成失败")).resolves.toBe("图片生成失败，状态码 500");
+        await expect(readFetchError(new Response("", { status: 502 }), "图片生成失败")).resolves.toBe("图片生成失败，状态码 502");
     });
 });
