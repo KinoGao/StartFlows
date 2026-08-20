@@ -117,7 +117,11 @@ export function useBackendWorkspaceSync() {
     }, []);
 
     const syncConfigNow = useCallback(async () => {
-        if (!canSync() || !token || pushingRef.current.config) return;
+        if (!canSync() || !token || pushingRef.current.config) {
+            // 就绪窗口（引导/迁移 apply 期间）跳过的推送必须补推，否则版本差会静默滞留到下一次编辑
+            if (saveMode === "backend" && token && lastPushedVersionRef.current.config !== versionRef.current.config) schedulePushRetry();
+            return;
+        }
         const version = versionRef.current.config;
         if (lastPushedVersionRef.current.config === version) return;
         pushingRef.current.config = true;
@@ -133,10 +137,14 @@ export function useBackendWorkspaceSync() {
             pushingRef.current.config = false;
             if (succeeded && lastPushedVersionRef.current.config !== versionRef.current.config) void syncConfigNow();
         }
-    }, [canSync, handlePushFailure, handlePushSuccess, token]);
+    }, [canSync, handlePushFailure, handlePushSuccess, saveMode, schedulePushRetry, token]);
 
     const syncProjectsNow = useCallback(async () => {
-        if (!canSync() || !token || pushingRef.current.projects) return;
+        if (!canSync() || !token || pushingRef.current.projects) {
+            // 就绪窗口（引导/迁移 apply 期间）跳过的推送必须补推，否则版本差会静默滞留到下一次编辑
+            if (saveMode === "backend" && token && lastPushedVersionRef.current.projects !== versionRef.current.projects) schedulePushRetry();
+            return;
+        }
         const current = useCanvasStore.getState();
         if (lastPushedVersionRef.current.projects === versionRef.current.projects && !hasMigratableStorageKey(current.projects, missingLegacyStorageKeysRef.current)) return;
         pushingRef.current.projects = true;
@@ -164,10 +172,14 @@ export function useBackendWorkspaceSync() {
             pushingRef.current.projects = false;
             if (succeeded && lastPushedVersionRef.current.projects !== versionRef.current.projects) void syncProjectsNow();
         }
-    }, [canSync, handlePushFailure, handlePushSuccess, replaceProjects, reportMissingLegacyMedia, token]);
+    }, [canSync, handlePushFailure, handlePushSuccess, replaceProjects, reportMissingLegacyMedia, saveMode, schedulePushRetry, token]);
 
     const syncAssetsNow = useCallback(async () => {
-        if (!canSync() || !token || pushingRef.current.assets) return;
+        if (!canSync() || !token || pushingRef.current.assets) {
+            // 就绪窗口（引导/迁移 apply 期间）跳过的推送必须补推，否则版本差会静默滞留到下一次编辑
+            if (saveMode === "backend" && token && lastPushedVersionRef.current.assets !== versionRef.current.assets) schedulePushRetry();
+            return;
+        }
         const current = useAssetStore.getState().assets;
         if (lastPushedVersionRef.current.assets === versionRef.current.assets && !hasMigratableStorageKey(current, missingLegacyStorageKeysRef.current)) return;
         pushingRef.current.assets = true;
@@ -194,7 +206,7 @@ export function useBackendWorkspaceSync() {
             pushingRef.current.assets = false;
             if (succeeded && lastPushedVersionRef.current.assets !== versionRef.current.assets) void syncAssetsNow();
         }
-    }, [canSync, handlePushFailure, handlePushSuccess, replaceAssets, reportMissingLegacyMedia, token]);
+    }, [canSync, handlePushFailure, handlePushSuccess, replaceAssets, reportMissingLegacyMedia, saveMode, schedulePushRetry, token]);
 
     useEffect(() => {
         if (!userHydrated) return;
@@ -271,6 +283,10 @@ export function useBackendWorkspaceSync() {
             applyingRef.current = false;
             bootstrapFailureNotifiedRef.current = false;
             setWorkspaceState("ready");
+            // 引导期间就绪窗口里被跳过的本地变更立即补推，避免静默滞留到下一次编辑
+            void syncConfigNow();
+            void syncProjectsNow();
+            void syncAssetsNow();
         })()
             .catch((error) => {
                 if (cancelled) return;
@@ -295,7 +311,7 @@ export function useBackendWorkspaceSync() {
             cancelled = true;
             if (retryTimer !== undefined) window.clearTimeout(retryTimer);
         };
-    }, [bootstrapRetryTick, clearSession, message, replaceAssets, replaceConfig, replaceProjects, saveMode, setWorkspaceState, token, updateUser, userHydrated, userId]);
+    }, [bootstrapRetryTick, clearSession, message, replaceAssets, replaceConfig, replaceProjects, saveMode, setWorkspaceState, syncAssetsNow, syncConfigNow, syncProjectsNow, token, updateUser, userHydrated, userId]);
 
     useEffect(() => {
         if (!pushRetryTick || saveMode !== "backend" || !token || !readyRef.current || applyingRef.current) return;

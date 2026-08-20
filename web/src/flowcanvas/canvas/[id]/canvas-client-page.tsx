@@ -5139,6 +5139,12 @@ function LeaferCanvasPage() {
 
     const generateScriptAssetNode = useCallback(
         (scriptNode: CanvasNodeData, asset: CanvasScriptAsset, target: "image" | "comfyui" = "image") => {
+            // 重复生成先替换该资产上次的设定图节点，避免画布上叠加孤儿节点
+            const oldOutputId = scriptNode.metadata?.scriptAssetOutputs?.[asset.id];
+            if (oldOutputId && nodesRef.current.some((node) => node.id === oldOutputId)) {
+                deleteNodes(new Set([oldOutputId]));
+                connectionsRef.current = connectionsRef.current.filter((conn) => conn.fromNodeId !== oldOutputId && conn.toNodeId !== oldOutputId);
+            }
             const type = target === "comfyui" ? CanvasNodeType.ComfyUI : CanvasNodeType.Image;
             const spec = NODE_DEFAULT_SIZE[type];
             const outputCount = Object.keys(scriptNode.metadata?.scriptAssetOutputs ?? {}).length;
@@ -5149,22 +5155,27 @@ function LeaferCanvasPage() {
                 target === "comfyui"
                     ? { status: NODE_STATUS_IDLE, composerContent: prompt, generationMode: "comfyui", comfyCapability: "text-to-image", comfyWorkflowId: comfyui.defaultWorkflowId }
                     : { status: NODE_STATUS_IDLE, prompt, generationMode: "image", generationType: "generation" };
+            const assetZoneLabel = asset.kind === "character" ? "角色" : asset.kind === "scene" ? "场景" : "道具";
             const node: CanvasNodeData = {
                 ...createCanvasNode(type, { x: position.x + spec.width / 2, y: position.y + spec.height / 2 }, metadata),
+                ...(asset.name.trim() ? { title: `${assetZoneLabel}·${asset.name.trim()}` } : {}),
                 position,
                 width: spec.width,
                 height: spec.height,
             };
             nodesRef.current = [...nodesRef.current, node];
             connectionsRef.current = [...connectionsRef.current, createCanvasConnection(scriptNode.id, node.id)];
-            handleConfigNodeChange(scriptNode.id, { scriptAssetOutputs: { ...(scriptNode.metadata?.scriptAssetOutputs ?? {}), [asset.id]: node.id }, scriptOutputIds: [...(scriptNode.metadata?.scriptOutputIds ?? []), node.id] });
+            handleConfigNodeChange(scriptNode.id, { scriptAssetOutputs: { ...(scriptNode.metadata?.scriptAssetOutputs ?? {}), [asset.id]: node.id }, scriptOutputIds: [...(scriptNode.metadata?.scriptOutputIds ?? []).filter((id) => id !== oldOutputId), node.id] });
             setNodes((prev) => [...prev, node]);
             setConnections((prev) => [...prev, createCanvasConnection(scriptNode.id, node.id)]);
             setSelectedNodeIds(new Set([node.id]));
             setSelectedConnectionId(null);
+            // 关闭全屏工作台再打开 composer 确认卡片，否则 composer 会被 z-[220] 的工作台盖住，用户看不到确认入口
+            setScriptStudioNodeId(null);
+            setScriptStudioInitialExportTarget(null);
             setDialogNodeId(node.id);
         },
-        [comfyui.defaultWorkflowId, createCanvasConnection, createCanvasNode, handleConfigNodeChange],
+        [comfyui.defaultWorkflowId, createCanvasConnection, createCanvasNode, deleteNodes, handleConfigNodeChange],
     );
 
     // 一键补齐：为所有还没有可用设定图的资产创建图片节点（逐个 composer 确认后才生成）
@@ -5186,9 +5197,11 @@ function LeaferCanvasPage() {
             const newNodes = missing.map((asset, index) => {
                 const position = { x: scriptNode.position.x - spec.width - 96, y: scriptNode.position.y + (baseCount + index) * (spec.height + 36) };
                 const prompt = buildAssetPrompt(asset);
+                const zoneLabel = asset.kind === "character" ? "角色" : asset.kind === "scene" ? "场景" : "道具";
                 return {
                     assetId: asset.id,
                     ...createCanvasNode(CanvasNodeType.Image, { x: position.x + spec.width / 2, y: position.y + spec.height / 2 }, { status: NODE_STATUS_IDLE, prompt, composerContent: prompt, generationMode: "image", generationType: "generation", model: effectiveConfig.imageModel || effectiveConfig.model }),
+                    ...(asset.name.trim() ? { title: `${zoneLabel}·${asset.name.trim()}` } : {}),
                     position,
                     width: spec.width,
                     height: spec.height,
