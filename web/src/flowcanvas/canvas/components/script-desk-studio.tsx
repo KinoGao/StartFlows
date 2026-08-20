@@ -104,6 +104,7 @@ export function ScriptDeskStudio({
     outputStates,
     referenceOptions,
     initialExportTarget,
+    onUploadAssetImage,
 }: {
     node: CanvasNodeData;
     theme: Theme;
@@ -131,6 +132,8 @@ export function ScriptDeskStudio({
     referenceOptions: ScriptReferenceOption[];
     /** 从画布节点浮动工具栏进入时直接打开对应批量导出确认（对齐 LibTV 脚本工具栏的批量生成分镜/生视频门槛与确认弹层） */
     initialExportTarget?: ExportTarget | null;
+    /** 资产设定图本地上传：上传图片文件并在画布左侧列落图片节点、登记为该资产设定图 */
+    onUploadAssetImage: (asset: CanvasScriptAsset, file: File) => void | Promise<void>;
 }) {
     const body = node.metadata?.scriptBody ?? node.metadata?.content ?? "";
     const beats = node.metadata?.scriptBeats?.length ? node.metadata.scriptBeats : buildScriptBeats(body);
@@ -149,6 +152,9 @@ export function ScriptDeskStudio({
     const [exportPlan, setExportPlan] = useState<{ target: ExportTarget; selectedIds: string[] } | null>(null);
     const [gateInfo, setGateInfo] = useState<{ target: ExportTarget; reasons: string[] } | null>(null);
     const [newAsset, setNewAsset] = useState<{ kind: CanvasScriptAsset["kind"]; name: string }>({ kind: "character", name: "" });
+    /** 资产设定图本地上传：隐藏 file input + 当前上传目标资产（对齐 LibTV 新增资产的本地上传方式） */
+    const assetUploadInputRef = useRef<HTMLInputElement>(null);
+    const assetUploadTargetRef = useRef<CanvasScriptAsset | null>(null);
     const updateBody = (scriptBody: string) => onChange({ scriptBody, content: scriptBody, status: scriptBody.trim() ? "success" : "idle" });
     // 正文含明确镜行编号（SH/SC/镜 N）时可本地重拆，不消耗模型
     const canReparse = /(^|\n)\s*(SH|SC|镜)\s*\d+/i.test(body);
@@ -298,8 +304,8 @@ export function ScriptDeskStudio({
     const renderContentWithAssetTokens = (text: string) => renderWithTokens(text);
     const renderDialogueTokens = (text: string) => renderWithTokens(text, ["[旁白]", "旁白：", "旁白:"]);
 
-    /** 步骤 1 的分镜表格行 */
-    const renderBeatRow = (beat: CanvasScriptBeat, index: number) => {
+    /** 步骤 1 的分镜表格行；highlightPrompt 为步骤 3 对齐 LibTV 的「最终提示词」列高亮 */
+    const renderBeatRow = (beat: CanvasScriptBeat, index: number, highlightPrompt = false) => {
         const state = outputStates[beat.id] || "idle";
         const status = SCRIPT_OUTPUT_STATUS[state];
         const expanded = expandedBeatId === beat.id;
@@ -334,15 +340,17 @@ export function ScriptDeskStudio({
                     <BeatCellTextarea value={beat.dialogue || ""} ariaLabel="对白旁白" theme={theme} renderTokens={renderDialogueTokens} onChange={(value) => patchBeat(beat, { dialogue: value })} />
                     <BeatCellTextarea value={beat.soundEffect || ""} ariaLabel="音效" theme={theme} renderTokens={renderContentWithAssetTokens} onChange={(value) => patchBeat(beat, { soundEffect: value })} />
                     <AutoComplete size="small" variant="borderless" value={beat.camera || ""} options={CAMERA_OPTIONS} placeholder="+" onChange={(value) => patchBeat(beat, { camera: value })} />
-                    {promptsReady ? (
-                        <button type="button" className="justify-self-center text-xs transition hover:underline" style={{ color: theme.node.text }} onClick={() => setPromptBeatId(beat.id)}>
-                            查看提示词
+                    <div className="flex items-center justify-center self-stretch rounded-md" style={highlightPrompt ? { background: `color-mix(in srgb, ${theme.ui.accent} 14%, transparent)` } : undefined}>
+                        <button
+                            type="button"
+                            className="text-xs transition hover:underline"
+                            style={{ color: promptsReady ? (highlightPrompt ? theme.ui.accent : theme.node.text) : theme.node.faint }}
+                            title={promptsReady ? "查看/编辑双轨提示词" : "打开双轨提示词，可手动编辑或智能合成"}
+                            onClick={() => setPromptBeatId(beat.id)}
+                        >
+                            {promptsReady ? "查看提示词" : "待生成提示词"}
                         </button>
-                    ) : (
-                        <span className="justify-self-center text-xs" style={{ color: theme.node.faint }}>
-                            待生成提示词
-                        </span>
-                    )}
+                    </div>
                     <Dropdown
                         menu={{
                             items: [
@@ -485,23 +493,128 @@ export function ScriptDeskStudio({
         );
     };
 
+    /** 分镜表格（步骤 1 确认镜头 / 步骤 3 合成提示词共用；步骤 3 对齐 LibTV 高亮「最终提示词」列） */
+    const renderBeatsTable = (highlightPromptColumn: boolean) => (
+        <div className="thin-scrollbar min-h-0 flex-1 overflow-auto rounded-lg border" style={{ borderColor: theme.toolbar.border }}>
+            <div className="min-w-[1180px]">
+                <div className={`grid ${BEAT_GRID} gap-x-3 border-b px-3 py-2.5 text-[11px]`} style={{ borderColor: theme.toolbar.border, color: theme.node.faint }}>
+                    <span>镜号</span>
+                    <span>时长</span>
+                    <span>画面描述</span>
+                    <span>景别</span>
+                    <span>光影氛围</span>
+                    <span>对白·旁白</span>
+                    <span>音效</span>
+                    <span>运镜</span>
+                    <span style={highlightPromptColumn ? { color: theme.ui.accent, fontWeight: 600 } : undefined}>最终提示词</span>
+                    <span>操作</span>
+                </div>
+                {actGroups.map((group) => (
+                    <div key={group.actTitle}>
+                        {acts.length || group.actTitle !== "未分幕" ? (
+                            <div className="flex items-center gap-2 border-b px-3 py-1.5" style={{ borderColor: theme.toolbar.border, background: theme.ui.controlFill }}>
+                                {group.act ? (
+                                    <input
+                                        className="h-6 min-w-0 flex-1 rounded bg-transparent px-1 text-xs font-semibold outline-none"
+                                        value={actTitleDrafts[group.act.id] ?? group.act.title}
+                                        onChange={(event) => setActTitleDrafts((current) => ({ ...current, [group.act!.id]: event.target.value }))}
+                                        onBlur={(event) => renameAct(group.act!, event.target.value)}
+                                        onKeyDown={(event) => {
+                                            if (event.key === "Enter") (event.target as HTMLInputElement).blur();
+                                        }}
+                                        aria-label="幕标题"
+                                    />
+                                ) : (
+                                    <span className="min-w-0 flex-1 px-1 text-xs font-semibold opacity-80">{group.actTitle}</span>
+                                )}
+                                {group.act?.duration ? <span className="shrink-0 text-[11px] opacity-45">{group.act.duration}</span> : null}
+                                <span className="shrink-0 text-[11px] opacity-45">{group.beats.length} 镜</span>
+                                <button type="button" className="shrink-0 text-[11px] opacity-50 transition hover:opacity-100" onClick={() => onBeatAdd(group.beats.length ? group.beats[group.beats.length - 1].index : beats.length - 1, group.act?.title)}>
+                                    ＋ 分镜
+                                </button>
+                                {group.act ? (
+                                    <button type="button" className="shrink-0 text-[11px] opacity-50 transition hover:opacity-100" onClick={() => removeAct(group.act!)}>
+                                        删除幕
+                                    </button>
+                                ) : null}
+                            </div>
+                        ) : null}
+                        {group.beats.map(({ beat, index }) => renderBeatRow(beat, index, highlightPromptColumn))}
+                    </div>
+                ))}
+                {!beats.length ? <div className="px-4 py-8 text-center text-xs opacity-45">还没有分镜。点顶部「剧本」写正文后用「AI 拆解」，或直接「添加镜头」。</div> : null}
+            </div>
+        </div>
+    );
+
     /** 步骤 2 的资产卡 */
+    /** 步骤 2 的资产卡（对齐 LibTV：设定图直接显示在卡片里，支持 AI 生成 / 从画布选图 / 本地上传三种方式） */
     const renderAssetCard = (asset: CanvasScriptAsset) => {
         const state = outputStates[asset.id] || "idle";
         const status = SCRIPT_OUTPUT_STATUS[state];
+        const outputs = node.metadata?.scriptAssetOutputs ?? {};
+        const outputId = outputs[asset.id];
+        const outputUrl = outputId ? referenceOptionById.get(outputId)?.url : undefined;
+        const zoneLabel = asset.kind === "character" ? "角色" : asset.kind === "scene" ? "场景" : "道具";
         return (
             <div key={asset.id} className="rounded-xl border p-2.5" style={{ borderColor: theme.toolbar.border, background: theme.node.fill }}>
-                <div className="flex items-center gap-2">
-                    <input className="h-7 min-w-0 flex-1 rounded border px-2 text-xs outline-none" value={asset.name} placeholder="名称" onChange={(event) => onAssetChange({ ...asset, name: event.target.value })} style={fieldStyle} />
-                    <span className="shrink-0 rounded-full px-2 py-0.5 text-[10px]" style={statusTagStyle(status.color)}>
+                <div className="relative aspect-video overflow-hidden rounded-lg border" style={{ borderColor: theme.toolbar.border, background: theme.ui.controlFill }}>
+                    {outputUrl ? (
+                        <img src={outputUrl} alt={`${zoneLabel}·${asset.name || "未命名"}`} className="absolute inset-0 size-full object-cover" />
+                    ) : (
+                        <span className="absolute inset-0 grid place-items-center px-2 text-center text-[11px]" style={{ color: theme.node.faint }}>
+                            {zoneLabel}设定图 · {status.label}
+                        </span>
+                    )}
+                    <span className="absolute right-1.5 top-1.5 rounded-full px-2 py-0.5 text-[10px]" style={statusTagStyle(status.color)}>
                         {status.label}
                     </span>
+                </div>
+                <div className="mt-2 flex items-center gap-2">
+                    <input className="h-7 min-w-0 flex-1 rounded border px-2 text-xs outline-none" value={asset.name} placeholder="名称" onChange={(event) => onAssetChange({ ...asset, name: event.target.value })} style={fieldStyle} />
                     <button type="button" className="shrink-0 text-xs opacity-50 transition hover:opacity-100" onClick={() => onAssetRemove(asset.id)}>
                         删除
                     </button>
                 </div>
                 <textarea className="thin-scrollbar mt-1.5 h-14 w-full resize-none rounded border px-2 py-1 text-xs leading-4 outline-none" value={asset.description} placeholder="外观/环境描述" onChange={(event) => onAssetChange({ ...asset, description: event.target.value })} style={fieldStyle} />
-                <div className="mt-1.5 flex justify-end">
+                <div className="mt-1.5 flex items-center justify-end gap-1.5">
+                    <Select
+                        size="small"
+                        placeholder="选图"
+                        value={null}
+                        showSearch
+                        style={{ width: 74 }}
+                        popupMatchSelectWidth={false}
+                        styles={{ popup: { root: { minWidth: 232, maxWidth: 320 } } }}
+                        options={referenceOptions.filter((option) => option.id !== outputId).map((option) => ({ value: option.id, label: option.title }))}
+                        optionRender={(item) => {
+                            // 与参考垫图选择器一致：缩略图优先，标题辅助
+                            const option = referenceOptionById.get(String(item.value));
+                            return (
+                                <span className="flex items-center gap-2 py-0.5">
+                                    <span className="relative block size-8 shrink-0 overflow-hidden rounded border" style={{ borderColor: theme.toolbar.border, background: theme.ui.controlFill }}>
+                                        <span className="grid size-full place-items-center opacity-50">
+                                            <ImageIcon className="size-3.5" />
+                                        </span>
+                                        {option?.url ? <img src={option.url} alt={option.title} className="absolute inset-0 size-full object-cover" loading="lazy" /> : null}
+                                    </span>
+                                    <span className="min-w-0 flex-1 truncate text-xs">{option?.title || "图片"}</span>
+                                </span>
+                            );
+                        }}
+                        onChange={(id) => {
+                            if (id) onChange({ scriptAssetOutputs: { ...outputs, [asset.id]: id } });
+                        }}
+                    />
+                    <Button
+                        size="small"
+                        onClick={() => {
+                            assetUploadTargetRef.current = asset;
+                            assetUploadInputRef.current?.click();
+                        }}
+                    >
+                        上传
+                    </Button>
                     <Dropdown
                         menu={{
                             items: [
@@ -530,6 +643,19 @@ export function ScriptDeskStudio({
     // 全屏工作台用不透明底色，避免背后画布内容微透（对齐 LibTV 全屏脚本页）
     return (
         <div className="fixed inset-0 z-[220] flex flex-col" style={{ background: theme.node.fill, color: theme.node.text }} data-canvas-no-zoom>
+            <input
+                ref={assetUploadInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(event) => {
+                    const file = event.target.files?.[0];
+                    event.target.value = "";
+                    const target = assetUploadTargetRef.current;
+                    assetUploadTargetRef.current = null;
+                    if (file && target) void onUploadAssetImage(target, file);
+                }}
+            />
             {/* 顶栏（对齐 LibTV 单行布局）：左侧工具按钮，中间三步进度条，右侧完成度 + 关闭 */}
             <div className="relative flex h-16 shrink-0 items-center justify-between border-b px-6" style={{ borderColor: theme.toolbar.border, background: theme.node.fill }}>
                 <div className="relative z-10 flex items-center gap-1">
@@ -627,56 +753,7 @@ export function ScriptDeskStudio({
                     ) : null}
 
                     <div className="flex min-h-0 min-w-0 flex-1 flex-col px-6 pb-4 pt-3">
-                        <div className="thin-scrollbar min-h-0 flex-1 overflow-auto rounded-lg border" style={{ borderColor: theme.toolbar.border }}>
-                            <div className="min-w-[1180px]">
-                                <div className={`grid ${BEAT_GRID} gap-x-3 border-b px-3 py-2.5 text-[11px]`} style={{ borderColor: theme.toolbar.border, color: theme.node.faint }}>
-                                    <span>镜号</span>
-                                    <span>时长</span>
-                                    <span>画面描述</span>
-                                    <span>景别</span>
-                                    <span>光影氛围</span>
-                                    <span>对白·旁白</span>
-                                    <span>音效</span>
-                                    <span>运镜</span>
-                                    <span>最终提示词</span>
-                                    <span>操作</span>
-                                </div>
-                                {actGroups.map((group) => (
-                                    <div key={group.actTitle}>
-                                        {acts.length || group.actTitle !== "未分幕" ? (
-                                            <div className="flex items-center gap-2 border-b px-3 py-1.5" style={{ borderColor: theme.toolbar.border, background: theme.ui.controlFill }}>
-                                                {group.act ? (
-                                                    <input
-                                                        className="h-6 min-w-0 flex-1 rounded bg-transparent px-1 text-xs font-semibold outline-none"
-                                                        value={actTitleDrafts[group.act.id] ?? group.act.title}
-                                                        onChange={(event) => setActTitleDrafts((current) => ({ ...current, [group.act!.id]: event.target.value }))}
-                                                        onBlur={(event) => renameAct(group.act!, event.target.value)}
-                                                        onKeyDown={(event) => {
-                                                            if (event.key === "Enter") (event.target as HTMLInputElement).blur();
-                                                        }}
-                                                        aria-label="幕标题"
-                                                    />
-                                                ) : (
-                                                    <span className="min-w-0 flex-1 px-1 text-xs font-semibold opacity-80">{group.actTitle}</span>
-                                                )}
-                                                {group.act?.duration ? <span className="shrink-0 text-[11px] opacity-45">{group.act.duration}</span> : null}
-                                                <span className="shrink-0 text-[11px] opacity-45">{group.beats.length} 镜</span>
-                                                <button type="button" className="shrink-0 text-[11px] opacity-50 transition hover:opacity-100" onClick={() => onBeatAdd(group.beats.length ? group.beats[group.beats.length - 1].index : beats.length - 1, group.act?.title)}>
-                                                    ＋ 分镜
-                                                </button>
-                                                {group.act ? (
-                                                    <button type="button" className="shrink-0 text-[11px] opacity-50 transition hover:opacity-100" onClick={() => removeAct(group.act!)}>
-                                                        删除幕
-                                                    </button>
-                                                ) : null}
-                                            </div>
-                                        ) : null}
-                                        {group.beats.map(({ beat, index }) => renderBeatRow(beat, index))}
-                                    </div>
-                                ))}
-                                {!beats.length ? <div className="px-4 py-8 text-center text-xs opacity-45">还没有分镜。点顶部「剧本」写正文后用「AI 拆解」，或直接「添加镜头」。</div> : null}
-                            </div>
-                        </div>
+                        {renderBeatsTable(false)}
                         {/* 底部操作栏（对齐 LibTV）：左侧添加镜头，右侧进入下一步 */}
                         <div className="flex shrink-0 items-center justify-between pt-3">
                             <div className="flex items-center gap-4">
@@ -756,45 +833,25 @@ export function ScriptDeskStudio({
             ) : null}
 
             {step === 3 ? (
-                <div className="flex min-h-0 flex-1 flex-col p-4">
-                    <div className="mb-2 flex items-center justify-between">
-                        <div className="text-sm font-medium opacity-70">合成提示词</div>
-                        <div className="flex items-center gap-3">
-                            <span className="text-xs opacity-45">已合成 {synthesizedCount}/{beats.length} 镜</span>
-                            <Button size="small" type="primary" ghost icon={<Sparkles className="size-3.5" />} loading={synthAllPending} disabled={!beats.length || synthesizedCount === beats.length} onClick={() => void synthesizeAll()} title="用后台默认文本模型逐镜合成，跳过已合成的分镜">
-                                一键合成全部提示词
-                            </Button>
-                        </div>
-                    </div>
+                <div className="flex min-h-0 min-w-0 flex-1 flex-col px-6 pb-4 pt-3">
                     <div className="mb-2 rounded-lg border px-3 py-2 text-[11px] leading-5 opacity-55" style={{ borderColor: theme.toolbar.border }}>
-                        每镜两条提示词：分镜图提示词用于生成帧图，视频运动提示词按 起始状态 → 按秒动作 → 结束状态 → 音效/配乐 结构驱动视频。留空则生成时自动拼接分镜字段，不消耗模型。
+                        每镜两条提示词：分镜图提示词用于生成帧图，视频运动提示词按 起始状态 → 按秒动作 → 结束状态 → 音效/配乐 结构驱动视频。留空则生成时自动拼接分镜字段，不消耗模型。点「最终提示词」列可逐镜查看/编辑或智能合成。
                     </div>
-                    <div className="thin-scrollbar min-h-0 flex-1 space-y-1.5 overflow-y-auto pr-1">
-                        {beats.map((beat, index) => {
-                            const ready = Boolean(beat.imagePrompt && beat.videoPrompt);
-                            return (
-                                <div key={beat.id} className="flex items-center gap-2 rounded-lg border px-3 py-2" style={{ borderColor: theme.toolbar.border, background: theme.node.fill }}>
-                                    <span className="flex size-5 shrink-0 items-center justify-center rounded text-[10px] font-semibold" style={{ background: theme.ui.controlFill, color: theme.node.muted }}>
-                                        {index + 1}
-                                    </span>
-                                    <span className="w-32 shrink-0 truncate text-xs font-medium">{beat.title}</span>
-                                    <span className="w-24 shrink-0 rounded px-1.5 py-0.5 text-center text-[11px]" style={statusTagStyle(beat.imagePrompt ? "#22c55e" : "#8a8f98")}>
-                                        帧图{beat.imagePrompt ? "已合成" : "未合成"}
-                                    </span>
-                                    <span className="w-24 shrink-0 rounded px-1.5 py-0.5 text-center text-[11px]" style={statusTagStyle(beat.videoPrompt ? "#22c55e" : "#8a8f98")}>
-                                        运动{beat.videoPrompt ? "已合成" : "未合成"}
-                                    </span>
-                                    <span className="min-w-0 flex-1 truncate text-[11px] opacity-45">{(beat.videoPrompt || beat.imagePrompt || beat.content) || "—"}</span>
-                                    <Button size="small" loading={synthPendingId === beat.id} disabled={!beat.content.trim() && !beat.title.trim()} onClick={() => void synthesizeBeat(beat)}>
-                                        {ready ? "重新合成" : "智能合成"}
-                                    </Button>
-                                    <Button size="small" type="text" onClick={() => setPromptBeatId(beat.id)}>
-                                        查看/编辑
-                                    </Button>
-                                </div>
-                            );
-                        })}
-                        {!beats.length ? <div className="rounded-xl border border-dashed px-4 py-8 text-center text-xs opacity-45" style={{ borderColor: theme.toolbar.border }}>还没有分镜，先回步骤 1 确认镜头。</div> : null}
+                    {renderBeatsTable(true)}
+                    {/* 底部操作栏（对齐 LibTV 第三步）：左侧合成进度，右侧一键合成全部 */}
+                    <div className="flex shrink-0 items-center justify-between pt-3">
+                        <span className="text-[11px] opacity-45">已合成 {synthesizedCount}/{beats.length} 镜</span>
+                        <button
+                            type="button"
+                            className="flex items-center gap-1.5 rounded-full px-4 py-2 text-xs font-medium transition hover:opacity-85 disabled:cursor-not-allowed disabled:opacity-40"
+                            style={{ background: theme.node.text, color: theme.canvas.background }}
+                            disabled={!beats.length || synthesizedCount === beats.length || synthAllPending}
+                            onClick={() => void synthesizeAll()}
+                            title="用后台默认文本模型逐镜合成，跳过已合成的分镜"
+                        >
+                            <Sparkles className="size-3.5" />
+                            {synthAllPending ? "合成中…" : "一键合成全部提示词"}
+                        </button>
                     </div>
                 </div>
             ) : null}

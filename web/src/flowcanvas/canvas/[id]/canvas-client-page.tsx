@@ -5223,6 +5223,49 @@ function LeaferCanvasPage() {
         [createCanvasConnection, createCanvasNode, effectiveConfig.imageModel, effectiveConfig.model, handleConfigNodeChange, message],
     );
 
+    // 资产设定图本地上传：上传后在脚本左侧列落图片节点并登记为该资产设定图（真实内容，无需 composer 确认）
+    const uploadScriptAssetImage = useCallback(
+        async (scriptNode: CanvasNodeData, asset: CanvasScriptAsset, file: File) => {
+            let image;
+            try {
+                image = await uploadImage(file);
+            } catch (error) {
+                message.error(error instanceof Error ? error.message : "图片上传失败，请重试");
+                return;
+            }
+            // 与生成路径一致：重复上传替换该资产上次的设定图节点
+            const oldOutputId = scriptNode.metadata?.scriptAssetOutputs?.[asset.id];
+            if (oldOutputId && nodesRef.current.some((node) => node.id === oldOutputId)) {
+                deleteNodes(new Set([oldOutputId]));
+                connectionsRef.current = connectionsRef.current.filter((conn) => conn.fromNodeId !== oldOutputId && conn.toNodeId !== oldOutputId);
+            }
+            const spec = NODE_DEFAULT_SIZE[CanvasNodeType.Image];
+            const outputCount = Object.keys(scriptNode.metadata?.scriptAssetOutputs ?? {}).length;
+            const position = { x: scriptNode.position.x - spec.width - 96, y: scriptNode.position.y + outputCount * (spec.height + 36) };
+            const zoneLabel = asset.kind === "character" ? "角色" : asset.kind === "scene" ? "场景" : "道具";
+            const node: CanvasNodeData = {
+                ...createCanvasNode(CanvasNodeType.Image, { x: position.x + spec.width / 2, y: position.y + spec.height / 2 }, { ...imageMetadata(image), freeResize: true }),
+                ...(asset.name.trim() ? { title: `${zoneLabel}·${asset.name.trim()}` } : {}),
+                position,
+                width: spec.width,
+                height: spec.height,
+            };
+            const connection = createCanvasConnection(scriptNode.id, node.id);
+            nodesRef.current = [...nodesRef.current, node];
+            connectionsRef.current = [...connectionsRef.current, connection];
+            setNodes((prev) => [...prev, node]);
+            setConnections((prev) => [...prev, connection]);
+            handleConfigNodeChange(scriptNode.id, {
+                scriptAssetOutputs: { ...(scriptNode.metadata?.scriptAssetOutputs ?? {}), [asset.id]: node.id },
+                scriptOutputIds: [...(scriptNode.metadata?.scriptOutputIds ?? []).filter((id) => id !== oldOutputId), node.id],
+            });
+            setSelectedNodeIds(new Set([node.id]));
+            setSelectedConnectionId(null);
+            message.success(`已上传「${asset.name}」的${zoneLabel}设定图`);
+        },
+        [createCanvasConnection, createCanvasNode, deleteNodes, handleConfigNodeChange, message],
+    );
+
     // 智能合成：用文本模型为单个分镜同时产出分镜图提示词与结构化视频运动提示词
     const synthesizeScriptBeatPrompts = useCallback(
         async (scriptNode: CanvasNodeData, beat: CanvasScriptBeat) => {
@@ -6407,6 +6450,7 @@ function LeaferCanvasPage() {
                         onGenerateBeat={(beat, index, target) => (target === "image" ? createScriptBeatFrameNode(scriptStudioNode, beat, index) : createScriptBeatNode(scriptStudioNode, beat, index, target))}
                         onGenerateAsset={(asset, target) => generateScriptAssetNode(scriptStudioNode, asset, target)}
                         onGenerateAllAssets={() => generateAllScriptAssetNodes(scriptStudioNode)}
+                        onUploadAssetImage={(asset, file) => void uploadScriptAssetImage(scriptStudioNode, asset, file)}
                         onSynthesizeBeat={(beat) => synthesizeScriptBeatPrompts(scriptStudioNode, beat)}
                         onExportBeats={(target, beatIds) => exportScriptBeatNodes(scriptStudioNode, target, beatIds)}
                         onStitchFrames={() => void stitchScriptBeatFrames(scriptStudioNode)}

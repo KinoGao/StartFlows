@@ -211,12 +211,17 @@ test("studio step 2 prepare assets: add asset, batch fill creates named nodes, s
         await mouseClick(page, page.getByRole("button", { name: /准备资产/ }).first());
         await expect(page.getByText("检测到 1 个资产还没有设定图")).toBeVisible({ timeout: 8_000 });
 
-        // 添加资产：选择「道具」类型并填写名称（虚拟列表用键盘导航，不依赖渲染项）
-        await page.locator(".ant-select").first().click();
+        // 资产卡按 LibTV 显示设定图区域：未生成时显示占位，提供 选图/上传/生成资产图 三种方式
+        await expect(page.getByText("角色设定图 · 待生成")).toBeVisible();
+        await expect(page.getByText("选图").first()).toBeVisible();
+        await expect(page.getByRole("button", { name: /上\s*传/ }).first()).toBeVisible();
+
+        // 添加资产：选择「道具」类型并填写名称（虚拟列表用键盘导航，不依赖渲染项；新增资产行是最后一个 Select）
+        await page.locator(".ant-select").last().click();
         await page.keyboard.press("ArrowDown");
         await page.keyboard.press("ArrowDown");
         await page.keyboard.press("Enter");
-        await expect(page.locator(".ant-select").first()).toContainText("道具");
+        await expect(page.locator(".ant-select").last()).toContainText("道具");
         await page.getByPlaceholder("资产名称").fill("佩刀");
         await page.getByRole("button", { name: /添加资产/ }).click();
         await expect(page.getByPlaceholder("名称").nth(1)).toHaveValue("佩刀");
@@ -258,13 +263,14 @@ test("studio step 3 synthesize prompts: dual-track edit modal persists, smart sy
         await page.goto(`/canvas/${project.id}`, { waitUntil: "domcontentloaded" });
         await openStudio(page);
 
-        // 进入步骤 3「合成提示词」
+        // 进入步骤 3「合成提示词」：对齐 LibTV——同一张分镜表 +「最终提示词」列高亮，底部一键合成全部
         await mouseClick(page, page.getByRole("button", { name: /合成提示词/ }).first());
-        await expect(page.getByText("帧图未合成").first()).toBeVisible({ timeout: 8_000 });
-        await expect(page.getByText("运动未合成").first()).toBeVisible();
+        await expect(page.getByText("最终提示词").first()).toBeVisible({ timeout: 8_000 });
+        await expect(page.getByRole("button", { name: "待生成提示词" })).toHaveCount(2);
+        await expect(page.getByRole("button", { name: /一键合成全部提示词/ })).toBeVisible();
 
-        // 查看/编辑弹窗：双 textarea 可编辑并持久化到服务端
-        await page.getByRole("button", { name: "查看/编辑" }).first().click();
+        // 最终提示词单元格打开双轨弹窗：双 textarea 可编辑并持久化到服务端
+        await page.getByRole("button", { name: "待生成提示词" }).first().click();
         await expect(page.getByText("第 1 镜：双轨提示词")).toBeVisible();
         await page.getByPlaceholder(/留空自动合成/).fill("自定义帧图提示词：控制室全景，电影感");
         await expect
@@ -274,12 +280,12 @@ test("studio step 3 synthesize prompts: dual-track edit modal persists, smart sy
                 return beats[0]?.imagePrompt ?? "";
             }, { timeout: 10_000 })
             .toBe("自定义帧图提示词：控制室全景，电影感");
-        await page.locator(".ant-modal-close").click();
 
-        // 智能合成：必须给出真实反馈（加载 → 成功或可读错误），不允许点了没反应
-        await page.getByRole("button", { name: "智能合成", exact: true }).first().click();
+        // 弹窗内智能合成：必须给出真实反馈（加载 → 成功或可读错误），不允许点了没反应
+        await page.getByRole("button", { name: /智能合成提示词/ }).click();
         await expect(page.locator(".ant-message")).toContainText(/正在智能合成/, { timeout: 8_000 });
         await expect(page.locator(".ant-message")).toContainText(/已合成分镜图与视频运动提示词|没有返回可识别|失败|不可用/, { timeout: 20_000 });
+        await page.locator(".ant-modal-close").click();
 
         // 一键合成全部提示词：按钮可点并出现忙碌/反馈
         await page.getByRole("button", { name: /一键合成全部提示词/ }).click();
