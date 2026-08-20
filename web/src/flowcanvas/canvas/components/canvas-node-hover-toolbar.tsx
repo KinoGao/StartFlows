@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { App, Modal, Segmented, Tooltip } from "antd";
-import { Clapperboard, Download, Ellipsis, FolderPlus, Info, LayoutGrid, MessageSquare, Minus, Music2, Pencil, Play, Plus, RefreshCw, ScanSearch, Scissors, Settings2, Sparkles, Trash2, Upload, Video, Workflow } from "lucide-react";
+import { Clapperboard, Download, Ellipsis, FolderPlus, Info, LayoutGrid, MessageSquare, Minus, Music2, Pencil, Plus, RefreshCw, ScanSearch, Scissors, Settings2, Sparkles, Trash2, Upload, Video, Workflow } from "lucide-react";
 
 import { canvasThemes } from "@/flowcanvas/lib/canvas-theme";
 import { formatBytes, getDataUrlByteSize } from "@/flowcanvas/lib/image-utils";
@@ -42,7 +42,6 @@ type CanvasNodeHoverToolbarProps = {
     onAnalyzeVideo: (node: CanvasNodeData) => void;
     onTrimVideo: (node: CanvasNodeData) => void;
     onRetry: (node: CanvasNodeData) => void;
-    onExecuteGroup: (node: CanvasNodeData) => void;
     onOpenStudio: (node: CanvasNodeData) => void;
     onScriptAction: (node: CanvasNodeData, intent: CanvasNodeActionIntent) => void;
     onToggleFreeResize: (node: CanvasNodeData) => void;
@@ -89,7 +88,6 @@ export function CanvasNodeHoverToolbar({
     onAnalyzeVideo,
     onTrimVideo,
     onRetry,
-    onExecuteGroup,
     onOpenStudio,
     onScriptAction,
     onToggleFreeResize,
@@ -236,7 +234,6 @@ export function CanvasNodeHoverToolbar({
                 {toolbarTools.map((tool) => (
                     <ToolbarAction key={tool.id} {...tool} showLabel={showImageToolLabels} />
                 ))}
-                <ToolbarAction id="executeGroup" title="整组执行：按连线顺序重新执行整组生成节点" label="整组执行" icon={<Play className="size-4" />} onClick={() => onExecuteGroup(currentNode)} showLabel={showImageToolLabels} />
                 {hasImage ? <ToolbarAction id="more" title="配置快捷工具" label="更多" icon={<Ellipsis className="size-4" />} active={imageToolSettingsOpen} onClick={openImageToolSettings} showLabel={showImageToolLabels} /> : null}
                 {hasImage ? (
                     <ToolbarAction

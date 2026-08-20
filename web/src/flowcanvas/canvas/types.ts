@@ -51,7 +51,6 @@ export type CanvasNodeActionIntent =
     | "script-edit"
     | "script-to-storyboard"
     | "script-to-video"
-    | "script-to-audio"
     | "composition-timeline"
     | "lapian-start";
 export type CanvasBaseMetadata = {

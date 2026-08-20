@@ -107,7 +107,7 @@ export type CanvasNodeProps = {
     onOpenAssetPicker?: (node: CanvasNodeData) => void;
     onCaptureVideoFrame?: (node: CanvasNodeData, dataUrl: string, kind: "first" | "current" | "last") => void | Promise<void>;
     onViewImage?: (node: CanvasNodeData) => void;
-    onGroupAction?: (node: CanvasNodeData, action: "execute" | "storyboard" | "ungroup") => void;
+    onGroupAction?: (node: CanvasNodeData, action: "storyboard" | "ungroup") => void;
     /** TapNow: 点击节点右侧 + 连接点，请求宿主创建下游节点并自动连线。 */
     onClickCreate?: (node: CanvasNodeData) => void;
     onContextMenu: (event: React.MouseEvent, nodeId: string) => void;
@@ -138,7 +138,7 @@ type NodeContentRendererProps = {
     onOpenComposer?: () => void;
     onNodeAction?: (intent: CanvasNodeActionIntent) => void;
     onUpload?: () => void;
-    onGroupAction?: (node: CanvasNodeData, action: "execute" | "storyboard" | "ungroup") => void;
+    onGroupAction?: (node: CanvasNodeData, action: "storyboard" | "ungroup") => void;
 };
 
 /** Custom memo comparator: skip function props (renderPanel, renderNodeContent, callbacks)
@@ -666,8 +666,7 @@ const nodeContentRenderers = {
 function GroupContent({ node, isSelected, onGroupAction }: NodeContentRendererProps) {
     const theme = canvasThemes[useThemeStore((state) => state.theme)];
     const isStoryboard = node.metadata?.groupVariant === "storyboard";
-    const actions: Array<{ key: "execute" | "storyboard" | "ungroup"; label: string; disabled?: boolean }> = [
-        { key: "execute", label: "整组执行" },
+    const actions: Array<{ key: "storyboard" | "ungroup"; label: string; disabled?: boolean }> = [
         { key: "storyboard", label: isStoryboard ? "已设为分镜组" : "设为分镜组", disabled: isStoryboard },
         { key: "ungroup", label: "解散组" },
     ];

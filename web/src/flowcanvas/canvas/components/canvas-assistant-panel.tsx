@@ -40,7 +40,7 @@ const ONLINE_AGENT_PROMPT = [
     "首轮必须调用工具：只读问题用 canvas_get_state / canvas_get_selection；改动画布时调用对应工具。",
     "能力域：",
     "- 创建：canvas_create_node / canvas_create_text_node(s) / canvas_create_image_prompt_flow / canvas_create_generation_flow；生成剧本/脚本/分镜时用 canvas_create_node 创建 canvasTool=\"script\" 的脚本节点（metadata.scriptBody 填剧本正文，支持分镜表与 AI 拆解），不要用普通文本节点代替；",
-    "- 生成与重跑：canvas_generate_text/image/video/audio（新建流程并立即生成）、canvas_run_generation（按给定提示词跑已有节点）、canvas_retry_node（沿用上次参数重跑）、canvas_execute_group（整组拓扑重跑）；",
+    "- 生成与重跑：canvas_generate_text/image/video/audio（新建流程并立即生成）、canvas_run_generation（按给定提示词跑已有节点）、canvas_retry_node（沿用上次参数重跑）；",
     "- 修改：canvas_update_node（含 model/size/count/quality/seconds 等 metadata 参数）、canvas_update_node_text、canvas_move_nodes、canvas_resize_node、canvas_delete_nodes、canvas_connect_nodes、canvas_select_nodes、canvas_set_viewport、canvas_apply_ops（精确批量）；",
     "- 图像工具：canvas_image_edit（多角度/扩图/打光/抠图/720 全景）、canvas_image_quick_command（镜头聚焦/焦点编辑/电影级光影/角色三视图/画面推演）、canvas_image_process（本地裁剪/宫格切分/高清放大，不耗模型）；",
     "- 视频工具：canvas_video_analyze（拆分镜表）、canvas_video_trim（剪辑出入点）、canvas_video_compose（拼接合成）；",
@@ -49,7 +49,7 @@ const ONLINE_AGENT_PROMPT = [
     "- 剧本与分镜：生成分镜时按「资产（角色/道具/场景）→ 连续分镜」组织；画面描述写可拍的具体画面（\"人怎么干\"而非\"人干什么\"），景别用 大远景/远景/全景/中景/近景/特写，运镜写具体运动方式（推近/拉远/横移/跟拍/环绕/升降/固定），情绪高点用近景/特写；同一场戏角色位置、服装、道具与场景细节前后连贯，不跳戏；",
     "- 图片/视频提示词：提示词是格式转换不是创意写作，画面主体、动作、空间关系必须完整保留，不添加分镜未提及的装饰性元素；风格词、画质词是辅助修饰，服务于画面内容，冲突时以画面内容为准；",
     "- 镜头一致性：有参考图或已生成节点时，角色/场景外观必须沿用既有设定，不得自行换装、改场景。",
-    "规则：不要输出 JSON ops，不要编造执行结果；工具参数涉及已有节点时必须使用当前画布 JSON 中真实存在的 id；缺少必要 id 或用户意图不明确时直接说明需要用户明确选择，不要猜测；高成本操作（批量生成、整组执行、合成导出）前先简要说明将要执行的动作；工具返回结果后，再根据真实结果回答用户。",
+    "规则：不要输出 JSON ops，不要编造执行结果；工具参数涉及已有节点时必须使用当前画布 JSON 中真实存在的 id；缺少必要 id 或用户意图不明确时直接说明需要用户明确选择，不要猜测；高成本操作（批量生成、合成导出）前先简要说明将要执行的动作；工具返回结果后，再根据真实结果回答用户。",
 ].join("\n");
 const JSON_RECORD_SCHEMA = { type: "object", additionalProperties: true };
 
@@ -126,7 +126,6 @@ const HIGH_COST_ONLINE_TOOL_NAMES = new Set([
     "canvas_generate_audio",
     "canvas_run_generation",
     "canvas_retry_node",
-    "canvas_execute_group",
     "canvas_image_edit",
     "canvas_image_quick_command",
     "canvas_grid_storyboard",
@@ -162,7 +161,7 @@ const ONLINE_AGENT_TOOLS: ResponseFunctionTool[] = [
     toolDefinition("canvas_export_snapshot", "导出当前画布快照，用于理解布局。", {}),
     toolDefinition(
         "canvas_apply_ops",
-        "批量操作当前网页画布。ops 支持 add_node、update_node、delete_node、delete_connections、connect_nodes、set_viewport、select_nodes、run_generation、retry_node、execute_group、group_nodes、ungroup_nodes、image_edit、image_quick_command、image_process、grid_storyboard、video_analyze、video_trim、video_compose、save_template、insert_template。",
+        "批量操作当前网页画布。ops 支持 add_node、update_node、delete_node、delete_connections、connect_nodes、set_viewport、select_nodes、run_generation、retry_node、group_nodes、ungroup_nodes、image_edit、image_quick_command、image_process、grid_storyboard、video_analyze、video_trim、video_compose、save_template、insert_template。",
         { ops: { type: "array", items: CANVAS_OP_SCHEMA } },
         ["ops"],
         false,
@@ -233,7 +232,6 @@ const ONLINE_AGENT_TOOLS: ResponseFunctionTool[] = [
     toolDefinition("canvas_run_generation", "触发指定节点生成，通常用于配置节点或文本/图片/视频/音频节点。", { nodeId: { type: "string" }, mode: GENERATION_MODE_SCHEMA, prompt: { type: "string" } }, ["nodeId"]),
     toolDefinition("canvas_list_templates", "列出账号下的工作流模板（id、名称、节点数、连线数）。", {}),
     toolDefinition("canvas_retry_node", "沿用上次参数重跑指定生成节点（重试 / 重新生成）。", { id: { type: "string" } }, ["id"]),
-    toolDefinition("canvas_execute_group", "整组执行：传入组内任意节点 id，按连线拓扑序重跑其所在打组或连通分组的全部生成节点。", { id: { type: "string" } }, ["id"]),
     toolDefinition(
         "canvas_group_nodes",
         "把指定节点打组；variant 为 storyboard 时合并为分镜组。",
@@ -1402,7 +1400,6 @@ function onlineToolToOps(name: string, input: Record<string, unknown>, snapshot:
     if (name === "canvas_set_viewport") return [{ type: "set_viewport", viewport: requireViewport(input.viewport) }];
     if (name === "canvas_run_generation") return [runGenerationOp(requireString(input.nodeId, "nodeId"), generationMode(input.mode), stringOptional(input.prompt))];
     if (name === "canvas_retry_node") return [{ type: "retry_node", id: requireString(input.id, "id") }];
-    if (name === "canvas_execute_group") return [{ type: "execute_group", id: requireString(input.id, "id") }];
     if (name === "canvas_group_nodes") return [{ type: "group_nodes", ids: requireStringArray(input.ids, "ids"), variant: input.variant === "storyboard" ? "storyboard" : "normal" }];
     if (name === "canvas_ungroup_nodes") return [{ type: "ungroup_nodes", ids: requireStringArray(input.ids, "ids") }];
     if (name === "canvas_image_edit")
@@ -1557,7 +1554,6 @@ function toolCallLabel(name: string) {
     if (name === "canvas_run_generation") return "触发生成";
     if (name === "canvas_list_templates") return "查询模板";
     if (name === "canvas_retry_node") return "重跑节点";
-    if (name === "canvas_execute_group") return "整组执行";
     if (name === "canvas_group_nodes") return "打组";
     if (name === "canvas_ungroup_nodes") return "解组";
     if (name === "canvas_image_edit") return "图像编辑";
@@ -1612,7 +1608,6 @@ function toCanvasAgentOp(value: unknown): CanvasAgentOp {
     if (type === "select_nodes") return { type, ids: requireStringArray(item.ids, "ids") };
     if (type === "run_generation") return { type, nodeId: requireString(item.nodeId, "nodeId"), mode: generationMode(item.mode), prompt: stringOptional(item.prompt) };
     if (type === "retry_node") return { type, id: requireString(item.id, "id") };
-    if (type === "execute_group") return { type, id: requireString(item.id, "id") };
     if (type === "group_nodes") return { type, ids: requireStringArray(item.ids, "ids"), variant: item.variant === "storyboard" ? "storyboard" : "normal" };
     if (type === "ungroup_nodes") return { type, ids: requireStringArray(item.ids, "ids") };
     if (type === "image_edit") return { type, id: requireString(item.id, "id"), action: requireString(item.action, "action") as "angle" | "outpaint" | "lighting" | "cutout" | "panorama720", params: recordOptional(item.params) };

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
 
-import { buildGridBeatPrompt, buildScriptBeats, buildScriptBeatsWithActs, GRID_SHOT_DESCRIPTIONS, inferScriptDuration, inferScriptShotType } from "./canvas-script-beats";
+import { buildGridBeatPrompt, buildScriptBeats, buildScriptBeatsWithActs, formatScriptBeatNodeTitle, GRID_SHOT_DESCRIPTIONS, inferScriptDuration, inferScriptShotType } from "./canvas-script-beats";
 
 test("buildScriptBeats splits a multi-line script into one beat per line", () => {
     const beats = buildScriptBeats("第一幕：主角进入陌生空间。\n特写：发现关键道具。\n中景：推门前行。");
@@ -21,6 +21,14 @@ test("buildScriptBeats caps at six beats and prefers line breaks over sentences"
     assert.equal(beats.length, 6);
     assert.equal(beats[0].id, "beat-1");
     assert.equal(beats[5].id, "beat-6");
+});
+
+test("formatScriptBeatNodeTitle：镜号 + 分镜名，默认占位标题不重复拼接", () => {
+    assert.equal(formatScriptBeatNodeTitle("image", 2, "规律尖峰"), "分镜图 #2·规律尖峰");
+    assert.equal(formatScriptBeatNodeTitle("video", 5, "规律尖峰"), "分镜视频 #5·规律尖峰");
+    assert.equal(formatScriptBeatNodeTitle("image", 3, "分镜 3"), "分镜图 #3");
+    assert.equal(formatScriptBeatNodeTitle("video", 1), "分镜视频 #1");
+    assert.equal(formatScriptBeatNodeTitle("image", 4, "  "), "分镜图 #4");
 });
 
 test("buildScriptBeats uses the default skeleton for an empty body", () => {

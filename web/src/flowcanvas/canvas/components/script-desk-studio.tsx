@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { App, AutoComplete, Button, Checkbox, Dropdown, Modal, Select } from "antd";
 import { ArrowRight, Clapperboard, Download, FileText, Image as ImageIcon, ListOrdered, MoreHorizontal, Plus, Sparkles, Upload, Workflow, X } from "lucide-react";
 
@@ -103,6 +103,7 @@ export function ScriptDeskStudio({
     priceEstimates,
     outputStates,
     referenceOptions,
+    initialExportTarget,
 }: {
     node: CanvasNodeData;
     theme: Theme;
@@ -128,6 +129,8 @@ export function ScriptDeskStudio({
     priceEstimates: { image: number | null; video: number | null };
     outputStates: Record<string, ScriptOutputState>;
     referenceOptions: ScriptReferenceOption[];
+    /** 从画布节点浮动工具栏进入时直接打开对应批量导出确认（对齐 LibTV 脚本工具栏的批量生成分镜/生视频门槛与确认弹层） */
+    initialExportTarget?: ExportTarget | null;
 }) {
     const body = node.metadata?.scriptBody ?? node.metadata?.content ?? "";
     const beats = node.metadata?.scriptBeats?.length ? node.metadata.scriptBeats : buildScriptBeats(body);
@@ -265,6 +268,15 @@ export function ScriptDeskStudio({
         if (reasons.length) setGateInfo({ target, reasons });
         else setExportPlan({ target, selectedIds: beats.map((beat) => beat.id) });
     };
+
+    // 画布浮动工具栏带入的批量导出意图：进入工作台即弹出对应门槛/确认弹层，只触发一次
+    const initialExportFiredRef = useRef(false);
+    useEffect(() => {
+        if (initialExportFiredRef.current || !initialExportTarget) return;
+        initialExportFiredRef.current = true;
+        openExport(initialExportTarget);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [initialExportTarget]);
 
     const promptBeat = promptBeatId ? beats.find((beat) => beat.id === promptBeatId) || null : null;
 

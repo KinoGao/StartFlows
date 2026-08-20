@@ -136,6 +136,14 @@ export function buildScriptBeats(body: string): CanvasScriptBeat[] {
     return buildScriptBeatsWithActs(body).beats;
 }
 
+/** 分镜派生节点的画布标题：镜号 + 分镜名，对齐 LibTV「分镜视频-#N」命名；默认「分镜 N」占位标题不重复拼接。 */
+export function formatScriptBeatNodeTitle(kind: "image" | "video", shotNumber: number, beatTitle?: string): string {
+    const prefix = kind === "video" ? "分镜视频" : "分镜图";
+    const label = beatTitle?.trim();
+    const suffix = label && !/^分镜\s*\d+$/.test(label) ? `·${label}` : "";
+    return `${prefix} #${shotNumber}${suffix}`;
+}
+
 export const GRID_SHOT_DESCRIPTIONS = [
     "大远景，交代环境",
     "远景，展现空间关系",

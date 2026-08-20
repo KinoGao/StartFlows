@@ -465,7 +465,6 @@ function CanvasShortcutsModal({ open, theme, onClose }: { open: boolean; theme: 
                 ["合并分镜组", "Ctrl + Alt + G"],
                 ["解组", "Ctrl/Alt + Shift + G"],
                 ["复制节点和连线", "Ctrl + D"],
-                ["生成", "Ctrl + Enter"],
                 ["新建节点", "Tab"],
             ],
         },

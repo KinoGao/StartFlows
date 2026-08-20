@@ -13,7 +13,6 @@ export type CanvasAgentOp =
     | { type: "select_nodes"; ids: string[] }
     | { type: "run_generation"; nodeId: string; mode?: "text" | "image" | "video" | "audio"; prompt?: string }
     | { type: "retry_node"; id: string }
-    | { type: "execute_group"; id: string }
     | { type: "group_nodes"; ids: string[]; variant?: "normal" | "storyboard" }
     | { type: "ungroup_nodes"; ids: string[] }
     | { type: "image_edit"; id: string; action: "angle" | "outpaint" | "lighting" | "cutout" | "panorama720"; params?: Record<string, unknown> }
@@ -33,7 +32,6 @@ export type CanvasAgentOp =
 export const CANVAS_AGENT_SIDE_EFFECT_OP_TYPES = new Set<CanvasAgentOp["type"]>([
     "run_generation",
     "retry_node",
-    "execute_group",
     "group_nodes",
     "ungroup_nodes",
     "image_edit",
@@ -153,7 +151,6 @@ function opLabel(type: string) {
     if (type === "select_nodes") return "选择节点";
     if (type === "run_generation") return "触发生成";
     if (type === "retry_node") return "重跑节点";
-    if (type === "execute_group") return "整组执行";
     if (type === "group_nodes") return "打组";
     if (type === "ungroup_nodes") return "解组";
     if (type === "image_edit") return "图像编辑";
