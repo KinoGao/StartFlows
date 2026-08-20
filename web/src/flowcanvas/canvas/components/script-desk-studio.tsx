@@ -260,6 +260,18 @@ export function ScriptDeskStudio({
             setSynthAllPending(false);
         }
     };
+    /** 一键合成全部：先确认再扣费（每镜一次文本模型调用），不允许点了就直接烧模型 */
+    const confirmSynthesizeAll = () => {
+        const pending = beats.length - synthesizedCount;
+        if (!pending) return;
+        modal.confirm({
+            title: "一键合成全部提示词？",
+            content: `将为 ${pending} 个未合成分镜逐个调用文本模型合成双轨提示词（每镜一次计费，已合成的自动跳过）。`,
+            okText: "开始合成",
+            cancelText: "取消",
+            onOk: () => void synthesizeAll(),
+        });
+    };
 
     // 批量导出门槛：资产设定图与双轨提示词未就绪时先给清单原因，可选择跳转补齐或仍然导出
     const openExport = (target: ExportTarget) => {
@@ -662,7 +674,22 @@ export function ScriptDeskStudio({
                     <Button type="text" size="small" icon={<FileText className="size-4" />} onClick={() => setShowScriptPanel((visible) => !visible)} style={showScriptPanel ? { color: theme.node.text, background: theme.ui.controlFill } : undefined}>
                         剧本
                     </Button>
-                    <Button type="text" size="small" icon={<Sparkles className="size-4" />} onClick={onAiAnalyze} disabled={!body.trim()}>
+                    <Button
+                        type="text"
+                        size="small"
+                        icon={<Sparkles className="size-4" />}
+                        disabled={!body.trim()}
+                        onClick={() =>
+                            // AI 拆解是付费文本调用且会覆盖当前分镜表与资产，先确认再执行，不允许点了就直接生成
+                            modal.confirm({
+                                title: "AI 拆解剧本？",
+                                content: beats.length || assets.length ? "将调用文本模型重新分析剧本（按文本模型计费），并覆盖当前分镜表与资产列表。" : "将调用文本模型分析剧本并生成分镜表与资产列表（按文本模型计费）。",
+                                okText: "开始拆解",
+                                cancelText: "取消",
+                                onOk: () => onAiAnalyze(),
+                            })
+                        }
+                    >
                         AI 拆解
                     </Button>
                     <Button type="text" size="small" icon={<ListOrdered className="size-4" />} onClick={onReparse} disabled={!canReparse} title="按正文里的幕/场/镜编号本地重建分镜表，不消耗模型">
@@ -846,7 +873,7 @@ export function ScriptDeskStudio({
                             className="flex items-center gap-1.5 rounded-full px-4 py-2 text-xs font-medium transition hover:opacity-85 disabled:cursor-not-allowed disabled:opacity-40"
                             style={{ background: theme.node.text, color: theme.canvas.background }}
                             disabled={!beats.length || synthesizedCount === beats.length || synthAllPending}
-                            onClick={() => void synthesizeAll()}
+                            onClick={confirmSynthesizeAll}
                             title="用后台默认文本模型逐镜合成，跳过已合成的分镜"
                         >
                             <Sparkles className="size-3.5" />

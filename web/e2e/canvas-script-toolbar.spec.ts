@@ -263,9 +263,18 @@ test("studio step 3 synthesize prompts: dual-track edit modal persists, smart sy
         await page.goto(`/canvas/${project.id}`, { waitUntil: "domcontentloaded" });
         await openStudio(page);
 
-        // 进入步骤 3「合成提示词」：对齐 LibTV——同一张分镜表 +「最终提示词」列高亮，底部一键合成全部
-        await mouseClick(page, page.getByRole("button", { name: /合成提示词/ }).first());
-        await expect(page.getByText("最终提示词").first()).toBeVisible({ timeout: 8_000 });
+        // AI 拆解是付费调用且覆盖分镜表：必须先弹确认，取消不得执行
+        await page.getByRole("button", { name: /AI 拆解/ }).click();
+        await expect(page.locator(".ant-modal-confirm-title").filter({ hasText: "AI 拆解剧本？" })).toBeVisible();
+        await page.locator(".ant-modal-confirm").getByRole("button", { name: "取 消" }).click();
+        await expect(page.locator(".ant-modal-confirm-title")).toBeHidden();
+
+        // 进入步骤 3「合成提示词」：对齐 LibTV——同一张分镜表 +「最终提示词」列高亮，底部一键合成全部（点击可能被弹层关闭动画吃掉，带重试）
+        await expect(async () => {
+            await mouseClick(page, page.getByRole("button", { name: /合成提示词/ }).first());
+            await expect(page.getByRole("button", { name: /一键合成全部提示词/ })).toBeVisible({ timeout: 2_000 });
+        }).toPass({ timeout: 15_000, intervals: [800, 1200, 2000] });
+        await expect(page.getByText("最终提示词").first()).toBeVisible();
         await expect(page.getByRole("button", { name: "待生成提示词" })).toHaveCount(2);
         await expect(page.getByRole("button", { name: /一键合成全部提示词/ })).toBeVisible();
 
@@ -287,8 +296,10 @@ test("studio step 3 synthesize prompts: dual-track edit modal persists, smart sy
         await expect(page.locator(".ant-message")).toContainText(/已合成分镜图与视频运动提示词|没有返回可识别|失败|不可用/, { timeout: 20_000 });
         await page.locator(".ant-modal-close").click();
 
-        // 一键合成全部提示词：按钮可点并出现忙碌/反馈
+        // 一键合成全部提示词：先弹确认（不允许点了就直接烧模型），确认后才逐镜执行
         await page.getByRole("button", { name: /一键合成全部提示词/ }).click();
+        await expect(page.locator(".ant-modal-confirm").getByText(/将为 \d+ 个未合成分镜/)).toBeVisible();
+        await page.locator(".ant-modal-confirm").getByRole("button", { name: "开始合成" }).click();
         await expect(page.locator(".ant-message")).toContainText(/正在智能合成/, { timeout: 8_000 });
     } finally {
         await deleteCanvasProject(request, project.id);
